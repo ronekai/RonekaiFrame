@@ -1,0 +1,50 @@
+<Window x:Class="RonekaiImageFramer.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:RonekaiImageFramer.Controls"
+        Title="PhonixFrame — Giriş"
+        Height="460" Width="500"
+        MinHeight="420" MinWidth="460"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip"
+        Background="{StaticResource BrandLightBrush}">
+    <Grid Margin="20,16,20,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <controls:BrandingHeaderView x:Name="BrandingHeader" Grid.Column="0" ShowTagline="False"/>
+            <controls:BrandingSettingsButton x:Name="BrandingSettings" Grid.Column="1"/>
+        </Grid>
+
+        <Border Grid.Row="1" Background="White" CornerRadius="12"
+                BorderBrush="#E2E6ED" BorderThickness="1" Padding="24,22">
+            <StackPanel>
+                <TextBlock Text="Giriş" FontSize="18" FontWeight="SemiBold"
+                           Foreground="{StaticResource BrandPrimaryBrush}" Margin="0,0,0,4"/>
+                <TextBlock Text="Devam etmek için şifrenizi girin"
+                           Foreground="{StaticResource BrandMutedBrush}"
+                           FontSize="13" Margin="0,0,0,18"/>
+
+                <TextBlock Text="Şifre" FontWeight="SemiBold"
+                           Foreground="{StaticResource BrandPrimaryBrush}" Margin="0,0,0,6"/>
+                <PasswordBox x:Name="PasswordBox" Height="38" Padding="10,0"
+                             VerticalContentAlignment="Center"
+                             KeyDown="PasswordBox_KeyDown"/>
+
+                <Button Content="Giriş" Height="42" Margin="0,22,0,0"
+                        Style="{StaticResource PrimaryButton}"
+                        Click="Login_Click" IsDefault="True"/>
+                <Button Content="Çıkış" Height="38" Margin="0,10,0,0"
+                        Style="{StaticResource SecondaryButton}"
+                        Click="Cancel_Click" IsCancel="True"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

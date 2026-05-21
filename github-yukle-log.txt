@@ -1,0 +1,135 @@
+﻿
+[2026-05-20 19:31:18] === RonekaiFrame GitHub yukleme ===
+[2026-05-20 19:31:18] Klasor: C:\Users\mkaskara\Source\Repos\RonekaiFrame
+[2026-05-20 19:31:18] Git: C:\Program Files\Git\cmd\git.exe
+[2026-05-20 19:31:18] git version 2.54.0.windows.1
+[2026-05-20 19:31:18] gh: C:\Program Files\GitHub CLI\gh.exe
+[2026-05-20 19:31:18] gh version 2.92.0 (2026-04-28)
+[2026-05-20 19:31:18] https://github.com/cli/cli/releases/tag/v2.92.0
+[2026-05-20 19:31:19] github.com
+[2026-05-20 19:31:19]   ✓ Logged in to github.com account ronekai (keyring)
+[2026-05-20 19:31:19]   - Active account: true
+[2026-05-20 19:31:19]   - Git operations protocol: https
+[2026-05-20 19:31:19]   - Token: gho_************************************
+[2026-05-20 19:31:19]   - Token scopes: 'gist', 'read:org', 'repo'
+[2026-05-20 19:31:19] Initialized empty Git repository in C:/Users/mkaskara/Source/Repos/RonekaiFrame/.git/
+[2026-05-20 19:31:20] A  .gitignore
+[2026-05-20 19:31:20] A  App.xaml
+[2026-05-20 19:31:20] A  App.xaml.cs
+[2026-05-20 19:31:20] A  Assets/LOGO_BURAYA.txt
+[2026-05-20 19:31:20] A  Calistir.bat
+[2026-05-20 19:31:20] A  ColorPickerWindow.xaml
+[2026-05-20 19:31:20] A  ColorPickerWindow.xaml.cs
+[2026-05-20 19:31:20] A  Derle.bat
+[2026-05-20 19:31:20] A  Derle.ps1
+[2026-05-20 19:31:20] A  Derle.ps1.bat
+[2026-05-20 19:31:20] A  GitHubYukle.bat
+[2026-05-20 19:31:20] A  GitHubYukle.ps1
+[2026-05-20 19:31:20] A  GitKur.bat
+[2026-05-20 19:31:20] A  GlobalUsings.cs
+[2026-05-20 19:31:20] A  KopyalaMasaustunden.bat
+[2026-05-20 19:31:20] A  LICENSE
+[2026-05-20 19:31:20] A  MainWindow.xaml
+[2026-05-20 19:31:20] A  MainWindow.xaml.cs
+[2026-05-20 19:31:20] A  Models/BrandColorTheme.cs
+[2026-05-20 19:31:20] A  Models/ColorPackListItem.cs
+[2026-05-20 19:31:20] A  Models/LogoModeListItem.cs
+[2026-05-20 19:31:20] A  Models/LogoOverlayMode.cs
+[2026-05-20 19:31:20] A  Models/LogoOverlaySettings.cs
+[2026-05-20 19:31:20] A  Models/TemplateListItem.cs
+[2026-05-20 19:31:20] A  README.md
+[2026-05-20 19:31:20] A  RonekaiImageFramer.csproj
+[2026-05-20 19:31:20] A  Services/AppPaths.cs
+[2026-05-20 19:31:20] A  Services/BatchProcessor.cs
+[2026-05-20 19:31:20] A  Services/BrandRenderer.cs
+[2026-05-20 19:31:20] A  Services/BrandThemeContext.cs
+[2026-05-20 19:31:20] A  Services/ColorPackRegistry.cs
+[2026-05-20 19:31:20] A  Services/FontProvider.cs
+[2026-05-20 19:31:20] A  Services/LogoComposer.cs
+[2026-05-20 19:31:20] A  Services/LogoModeRegistry.cs
+[2026-05-20 19:31:20] A  Services/LogoProvider.cs
+[2026-05-20 19:31:20] A  TasiVeGitHubYukle.ps1
+[2026-05-20 19:31:20] A  TemizleVeCalistir.bat
+[2026-05-20 19:31:20] A  Templates/BrandBarBottomTemplate.cs
+[2026-05-20 19:31:20] A  Templates/CornerWatermarkTemplate.cs
+[2026-05-20 19:31:20] A  Templates/DarkPremiumTemplate.cs
+[2026-05-20 19:31:20] A  Templates/IProductTemplate.cs
+[2026-05-20 19:31:20] A  Templates/MarketplaceSquareTemplate.cs
+[2026-05-20 19:31:20] A  Templates/MinimalFrameTemplate.cs
+[2026-05-20 19:31:20] A  Templates/TemplateBase.cs
+[2026-05-20 19:31:20] A  Templates/TemplateRegistry.cs
+[2026-05-20 19:31:20] A  Templates/WhiteStudioTemplate.cs
+[2026-05-20 19:31:20] A  Ui/UiColorHelper.cs
+[2026-05-20 19:31:20] A  github-push.ps1
+[2026-05-20 19:31:20] A  github-yukle-log.txt
+[2026-05-20 19:31:20] [master (root-commit) cb9a42e] Initial release of RonekaiFrame
+[2026-05-20 19:31:20]  Committer: Mehmet Kaskara <mkaskara@tjk.org>
+[2026-05-20 19:31:20] Your name and email address were configured automatically based
+[2026-05-20 19:31:20] on your username and hostname. Please check that they are accurate.
+[2026-05-20 19:31:20] You can suppress this message by setting them explicitly:
+[2026-05-20 19:31:20] 
+[2026-05-20 19:31:20]     git config --global user.name "Your Name"
+[2026-05-20 19:31:20]     git config --global user.email you@example.com
+[2026-05-20 19:31:20] 
+[2026-05-20 19:31:20] After doing this, you may fix the identity used for this commit with:
+[2026-05-20 19:31:20] 
+[2026-05-20 19:31:20]     git commit --amend --reset-author
+[2026-05-20 19:31:20] 
+[2026-05-20 19:31:20]  49 files changed, 2531 insertions(+)
+[2026-05-20 19:31:20]  create mode 100644 .gitignore
+[2026-05-20 19:31:20]  create mode 100644 App.xaml
+[2026-05-20 19:31:20]  create mode 100644 App.xaml.cs
+[2026-05-20 19:31:20]  create mode 100644 Assets/LOGO_BURAYA.txt
+[2026-05-20 19:31:20]  create mode 100644 Calistir.bat
+[2026-05-20 19:31:20]  create mode 100644 ColorPickerWindow.xaml
+[2026-05-20 19:31:20]  create mode 100644 ColorPickerWindow.xaml.cs
+[2026-05-20 19:31:20]  create mode 100644 Derle.bat
+[2026-05-20 19:31:20]  create mode 100644 Derle.ps1
+[2026-05-20 19:31:20]  create mode 100644 Derle.ps1.bat
+[2026-05-20 19:31:20]  create mode 100644 GitHubYukle.bat
+[2026-05-20 19:31:20]  create mode 100644 GitHubYukle.ps1
+[2026-05-20 19:31:20]  create mode 100644 GitKur.bat
+[2026-05-20 19:31:20]  create mode 100644 GlobalUsings.cs
+[2026-05-20 19:31:20]  create mode 100644 KopyalaMasaustunden.bat
+[2026-05-20 19:31:20]  create mode 100644 LICENSE
+[2026-05-20 19:31:20]  create mode 100644 MainWindow.xaml
+[2026-05-20 19:31:20]  create mode 100644 MainWindow.xaml.cs
+[2026-05-20 19:31:20]  create mode 100644 Models/BrandColorTheme.cs
+[2026-05-20 19:31:20]  create mode 100644 Models/ColorPackListItem.cs
+[2026-05-20 19:31:20]  create mode 100644 Models/LogoModeListItem.cs
+[2026-05-20 19:31:20]  create mode 100644 Models/LogoOverlayMode.cs
+[2026-05-20 19:31:20]  create mode 100644 Models/LogoOverlaySettings.cs
+[2026-05-20 19:31:20]  create mode 100644 Models/TemplateListItem.cs
+[2026-05-20 19:31:20]  create mode 100644 README.md
+[2026-05-20 19:31:20]  create mode 100644 RonekaiImageFramer.csproj
+[2026-05-20 19:31:20]  create mode 100644 Services/AppPaths.cs
+[2026-05-20 19:31:20]  create mode 100644 Services/BatchProcessor.cs
+[2026-05-20 19:31:20]  create mode 100644 Services/BrandRenderer.cs
+[2026-05-20 19:31:20]  create mode 100644 Services/BrandThemeContext.cs
+[2026-05-20 19:31:20]  create mode 100644 Services/ColorPackRegistry.cs
+[2026-05-20 19:31:20]  create mode 100644 Services/FontProvider.cs
+[2026-05-20 19:31:20]  create mode 100644 Services/LogoComposer.cs
+[2026-05-20 19:31:20]  create mode 100644 Services/LogoModeRegistry.cs
+[2026-05-20 19:31:20]  create mode 100644 Services/LogoProvider.cs
+[2026-05-20 19:31:20]  create mode 100644 TasiVeGitHubYukle.ps1
+[2026-05-20 19:31:20]  create mode 100644 TemizleVeCalistir.bat
+[2026-05-20 19:31:20]  create mode 100644 Templates/BrandBarBottomTemplate.cs
+[2026-05-20 19:31:20]  create mode 100644 Templates/CornerWatermarkTemplate.cs
+[2026-05-20 19:31:20]  create mode 100644 Templates/DarkPremiumTemplate.cs
+[2026-05-20 19:31:20]  create mode 100644 Templates/IProductTemplate.cs
+[2026-05-20 19:31:20]  create mode 100644 Templates/MarketplaceSquareTemplate.cs
+[2026-05-20 19:31:20]  create mode 100644 Templates/MinimalFrameTemplate.cs
+[2026-05-20 19:31:20]  create mode 100644 Templates/TemplateBase.cs
+[2026-05-20 19:31:20]  create mode 100644 Templates/TemplateRegistry.cs
+[2026-05-20 19:31:20]  create mode 100644 Templates/WhiteStudioTemplate.cs
+[2026-05-20 19:31:20]  create mode 100644 Ui/UiColorHelper.cs
+[2026-05-20 19:31:20]  create mode 100644 github-push.ps1
+[2026-05-20 19:31:20]  create mode 100644 github-yukle-log.txt
+[2026-05-20 19:31:20] Repo olusturuluyor: RonekaiFrame ...
+[2026-05-20 19:31:23] https://github.com/ronekai/RonekaiFrame
+[2026-05-20 19:31:25] To https://github.com/ronekai/RonekaiFrame.git
+[2026-05-20 19:31:25]  * [new branch]      HEAD -> master
+[2026-05-20 19:31:25] branch 'master' set up to track 'origin/master'.
+[2026-05-20 19:31:26] Repo URL: https://github.com/ronekai/RonekaiFrame
+[2026-05-20 19:31:26] === Bitti ===
+[2026-05-20 19:31:26] Log dosyasi: C:\Users\mkaskara\Source\Repos\RonekaiFrame\github-yukle-log.txt

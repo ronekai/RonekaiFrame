@@ -1,0 +1,13 @@
+RONEKAI.DEN logosunu bu klasöre koyun.
+
+Önerilen dosya adı:
+  ronekai-logo.png
+
+Alternatif adlar da kabul edilir:
+  ronekai-logo.jpg
+  logo.png
+
+Sohbette gönderdiğiniz logoyu kaydedip bu klasöre "ronekai-logo.png" adıyla kopyalayın.
+Program otomatik olarak bu dosyayı kullanır.
+
+Arayüzden "Logo seç…" ile farklı bir dosya da gösterebilirsiniz.
