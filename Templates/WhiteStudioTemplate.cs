@@ -9,8 +9,6 @@ namespace RonekaiImageFramer.Templates;
 
 public sealed class WhiteStudioTemplate : TemplateBase
 {
-    private static BrandColorTheme Theme => BrandThemeContext.Current;
-
     public override string Id => "white-studio";
     public override string Name => "Beyaz Stüdyo";
     public override string Description => "Seçilen zemin rengi, ürün ortada.";
@@ -21,7 +19,7 @@ public sealed class WhiteStudioTemplate : TemplateBase
         var canvas = CreateCanvas(OutputSize);
         var padding = (int)(OutputSize.Width * 0.08);
         var bounds = new ImgRectangle(padding, padding, OutputSize.Width - padding * 2, OutputSize.Height - padding * 2);
-        DrawProductContained(canvas, source, bounds, Theme.Background);
+        DrawProductContained(canvas, source, bounds, ThemeColorSlot.Background);
         return canvas;
     }
 }

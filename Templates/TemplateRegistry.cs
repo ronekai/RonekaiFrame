@@ -4,6 +4,8 @@ public static class TemplateRegistry
 {
     private static readonly IProductTemplate[] All =
     [
+        new NoTemplateTemplate(),
+        new YayTemplate(),
         new WhiteStudioTemplate(),
         new SoftShadowStudioTemplate(),
         new BrandBarBottomTemplate(),
@@ -16,6 +18,14 @@ public static class TemplateRegistry
         new DoubleLineFrameTemplate(),
         new SideBrandStripTemplate(),
         new CornerWatermarkTemplate(),
+        new PinterestPinTemplate(),
+        new StoryVerticalTemplate(),
+        new PolaroidFrameTemplate(),
+        new RoundedCardTemplate(),
+        new TrendyolSquareTemplate(),
+        new DiagonalAccentTemplate(),
+        new LuxuryFrameTemplate(),
+        new BannerStripTemplate(),
     ];
 
     public static IReadOnlyList<IProductTemplate> Templates => All;

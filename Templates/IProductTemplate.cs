@@ -11,5 +11,11 @@ public interface IProductTemplate
     string Description { get; }
     ImgSize OutputSize { get; }
 
+    /// <summary>Şablon çerçevesi uygulanmaz (ham görsel).</summary>
+    bool IsPassthrough { get; }
+
+    /// <summary>Seçili çıktı çözünürlüğüne tam yay (oran bozulabilir).</summary>
+    bool StretchToExport { get; }
+
     Image<Rgba32> Apply(Image<Rgba32> source);
 }

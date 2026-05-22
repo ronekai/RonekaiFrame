@@ -29,7 +29,7 @@ public static class LogoComposer
                 ApplyBackground(result, logoWork, opacity, blur: true, whiteWash: 0.55f);
                 break;
             case LogoOverlayMode.TamArkaPlan:
-                ApplyBackground(result, logoWork, opacity, blur: false, whiteWash: 0.25f);
+                ApplyFullBackground(result, logoWork, opacity, whiteWash: 0.2f);
                 break;
             case LogoOverlayMode.Cerceve:
                 ApplyFrame(result, logoWork, opacity);
@@ -48,43 +48,71 @@ public static class LogoComposer
         return result;
     }
 
+    private static void ApplyFullBackground(Image<Rgba32> canvas, Image<Rgba32> logo, float opacity, float whiteWash)
+    {
+        using var bgLogo = ResizeCover(logo, canvas.Size);
+        float logoAlpha = opacity * 0.72f;
+        canvas.Mutate(ctx =>
+        {
+            ctx.DrawImage(bgLogo, ImgPoint.Empty, logoAlpha);
+            if (whiteWash > 0)
+            {
+                var wash = BrandThemeColors.Background.ToPixel<Rgba32>();
+                ctx.Fill(ImgColor.FromRgba(wash.R, wash.G, wash.B, (byte)(whiteWash * 140)));
+            }
+        });
+    }
+
     private static void ApplyBackground(Image<Rgba32> canvas, Image<Rgba32> logo, float opacity, bool blur, float whiteWash)
     {
-        using var foreground = canvas.CloneAs<Rgba32>();
         using var bgLogo = ResizeCover(logo, canvas.Size);
 
         if (blur)
             bgLogo.Mutate(x => x.GaussianBlur(6));
 
+        float logoAlpha = opacity * 0.45f;
         canvas.Mutate(ctx =>
         {
-            ctx.Fill(ImgColor.White);
-            ctx.DrawImage(bgLogo, ImgPoint.Empty, opacity);
+            ctx.DrawImage(bgLogo, ImgPoint.Empty, logoAlpha);
             if (whiteWash > 0)
-                ctx.Fill(ImgColor.FromRgba(255, 255, 255, (byte)(whiteWash * 255)));
-            ctx.DrawImage(foreground, ImgPoint.Empty, 1f);
+            {
+                var wash = BrandThemeColors.Background.ToPixel<Rgba32>();
+                ctx.Fill(ImgColor.FromRgba(wash.R, wash.G, wash.B, (byte)(whiteWash * 160)));
+            }
         });
     }
 
     private static void ApplyFrame(Image<Rgba32> canvas, Image<Rgba32> logo, float opacity)
     {
         int bandHeight = Math.Max(48, (int)(canvas.Height * 0.13));
+        int topY = LogoPlacementContext.Top;
+        int bottomY = canvas.Height - bandHeight - LogoPlacementContext.Bottom;
 
         using var topLogo = ResizeFitWidth(logo, canvas.Width, bandHeight);
         using var bottomLogo = topLogo.CloneAs<Rgba32>();
 
         canvas.Mutate(ctx =>
         {
-            ctx.DrawImage(topLogo, new ImgPoint(0, 0), opacity);
-            ctx.DrawImage(bottomLogo, new ImgPoint(0, canvas.Height - bandHeight), opacity);
+            ctx.DrawImage(topLogo, new ImgPoint(0, topY), opacity);
+            if (bottomY >= topY + bandHeight)
+                ctx.DrawImage(bottomLogo, new ImgPoint(0, bottomY), opacity);
         });
 
-        using var sideLogo = ResizeFitHeight(logo, bandHeight, canvas.Height);
-        int sideX = Math.Max(8, (int)(canvas.Width * 0.02));
+        int sideBandH = canvas.Height - LogoPlacementContext.Top - LogoPlacementContext.Bottom;
+        if (sideBandH < 48)
+            return;
+
+        using var sideLogo = ResizeFitHeight(logo, bandHeight, sideBandH);
+        int sideMargin = Math.Max(8, (int)(canvas.Width * 0.02));
+        int sideXLeft = sideMargin + LogoPlacementContext.Left;
+        int sideXRight = canvas.Width - sideLogo.Width - sideMargin - LogoPlacementContext.Right;
+        int sideY = LogoPlacementContext.Top;
+
         canvas.Mutate(ctx =>
         {
-            ctx.DrawImage(sideLogo, new ImgPoint(sideX, 0), opacity * 0.85f);
-            ctx.DrawImage(sideLogo, new ImgPoint(canvas.Width - sideLogo.Width - sideX, 0), opacity * 0.85f);
+            ctx.DrawImage(sideLogo, new ImgPoint(sideXLeft, sideY), opacity * 0.85f);
+            if (sideXRight > sideXLeft + sideLogo.Width)
+                ctx.DrawImage(sideLogo, new ImgPoint(sideXRight, sideY), opacity * 0.85f);
         });
     }
 
@@ -102,17 +130,20 @@ public static class LogoComposer
 
         int x = horizontal switch
         {
-            AnchorPositionMode.Right => canvas.Width - badge.Width - margin,
+            AnchorPositionMode.Right => canvas.Width - badge.Width - margin - LogoPlacementContext.Right,
             AnchorPositionMode.Center => (canvas.Width - badge.Width) / 2,
-            _ => margin
+            _ => margin + LogoPlacementContext.Left
         };
 
         int y = vertical switch
         {
-            AnchorPositionMode.Bottom => canvas.Height - badge.Height - margin,
-            AnchorPositionMode.Top => margin,
+            AnchorPositionMode.Bottom => canvas.Height - badge.Height - margin - LogoPlacementContext.Bottom,
+            AnchorPositionMode.Top => margin + LogoPlacementContext.Top,
             _ => (canvas.Height - badge.Height) / 2
         };
+
+        x = Math.Clamp(x, LogoPlacementContext.Left, Math.Max(LogoPlacementContext.Left, canvas.Width - badge.Width - LogoPlacementContext.Right));
+        y = Math.Clamp(y, LogoPlacementContext.Top, Math.Max(LogoPlacementContext.Top, canvas.Height - badge.Height - LogoPlacementContext.Bottom));
 
         canvas.Mutate(ctx =>
         {

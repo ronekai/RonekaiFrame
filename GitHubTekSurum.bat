@@ -53,10 +53,17 @@ echo GitHub'a zorla yukleniyor (force push)...
 git push -f origin main
 if errorlevel 1 git push -f origin HEAD
 
-gh repo edit ronekai/RonekaiFrame --description "%REPO_DESC%" 2>nul
+echo Eski master dali siliniyor (zorunlu degil, sadece main kalacak)...
+git push origin --delete master 2>nul
+
+echo Varsayilan dal: main
+gh repo edit ronekai/RonekaiFrame --description "%REPO_DESC%" --default-branch main 2>nul
 
 echo.
-echo TAMAM — tek surum yuklendi:
+echo TAMAM — tek surum MAIN dalinda:
 echo https://github.com/ronekai/RonekaiFrame
+echo.
+echo GitHub web: Settings ^> General ^> Default branch = main
+echo master hala listede ise: dal listesinden master ^> Delete branch
 echo.
 pause

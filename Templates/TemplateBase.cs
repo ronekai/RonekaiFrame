@@ -1,3 +1,5 @@
+using RonekaiImageFramer.Models;
+using RonekaiImageFramer.Services;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
@@ -16,41 +18,98 @@ public abstract class TemplateBase : IProductTemplate
     public abstract string Description { get; }
     public abstract ImgSize OutputSize { get; }
 
+    public virtual bool IsPassthrough => false;
+
+    public virtual bool StretchToExport => false;
+
+    /// <summary>Varsayılan: stüdyo/kare şablonlarda köşe marka metni.</summary>
+    protected virtual TemplateBrandPlacement BrandTextPlacement => TemplateBrandPlacement.Corner;
+
     public Image<Rgba32> Apply(Image<Rgba32> source)
     {
         using var clone = source.CloneAs<Rgba32>();
-        return Render(clone);
+        var canvas = Render(clone);
+        if (BrandTextPlacement == TemplateBrandPlacement.Corner)
+            DrawCornerBrand(canvas);
+        return canvas;
     }
 
     protected abstract Image<Rgba32> Render(Image<Rgba32> source);
 
+    protected static void DrawCornerBrand(Image<Rgba32> canvas, int margin = 24)
+    {
+        LogoPlacementContext.ReserveCornerBrand(canvas.Width, margin);
+        BrandRenderer.DrawCornerWatermark(canvas, margin);
+    }
+
     protected static Image<Rgba32> CreateCanvas(ImgSize size) =>
         new(size.Width, size.Height);
+
+    protected static void FillCanvasBackground(Image<Rgba32> canvas) =>
+        ThemeFillRenderer.Fill(canvas, new RectangleF(0, 0, canvas.Width, canvas.Height), ThemeColorSlot.Background);
+
+    protected static void FillRegion(Image<Rgba32> canvas, RectangleF rect, ThemeColorSlot slot) =>
+        ThemeFillRenderer.Fill(canvas, rect, slot);
 
     protected static void DrawProductContained(
         Image<Rgba32> canvas,
         Image<Rgba32> product,
         ImgRectangle targetBounds,
-        ImgColor background,
+        ThemeColorSlot backgroundSlot,
         bool fillEntireCanvas = true)
     {
         if (fillEntireCanvas)
-            canvas.Mutate(ctx => ctx.Fill(background, new RectangleF(0, 0, canvas.Width, canvas.Height)));
+            ThemeFillRenderer.Fill(canvas, new RectangleF(0, 0, canvas.Width, canvas.Height), backgroundSlot);
         else
-            canvas.Mutate(ctx => ctx.Fill(background, targetBounds));
+            ThemeFillRenderer.Fill(canvas, targetBounds, backgroundSlot);
+
+        DrawProductIntoBounds(canvas, product, targetBounds);
+    }
+
+    protected static void DrawProductContained(
+        Image<Rgba32> canvas,
+        Image<Rgba32> product,
+        ImgRectangle targetBounds,
+        ImgColor solidBackground,
+        bool fillEntireCanvas = true)
+    {
+        if (fillEntireCanvas)
+            canvas.Mutate(ctx => ctx.Fill(solidBackground, new RectangleF(0, 0, canvas.Width, canvas.Height)));
+        else
+            canvas.Mutate(ctx => ctx.Fill(solidBackground, targetBounds));
+
+        DrawProductIntoBounds(canvas, product, targetBounds);
+    }
+
+    private static void DrawProductIntoBounds(
+        Image<Rgba32> canvas,
+        Image<Rgba32> product,
+        ImgRectangle targetBounds)
+    {
+        if (ProcessingFitContext.ResponsiveProductFit)
+        {
+            using var resized = product.Clone(ctx => ctx.Resize(new ResizeOptions
+            {
+                Size = targetBounds.Size,
+                Mode = ResizeMode.Crop,
+                Position = AnchorPositionMode.Center,
+                Sampler = KnownResamplers.Lanczos3
+            }));
+            canvas.Mutate(ctx => ctx.DrawImage(resized, new ImgPoint(targetBounds.X, targetBounds.Y), 1f));
+            return;
+        }
 
         var fit = CalculateFit(product.Size, targetBounds.Size);
-        using var resized = product.Clone(ctx => ctx.Resize(new ResizeOptions
+        using var contained = product.Clone(ctx => ctx.Resize(new ResizeOptions
         {
             Size = fit,
             Mode = ResizeMode.Max,
             Sampler = KnownResamplers.Lanczos3
         }));
 
-        int posX = targetBounds.X + (targetBounds.Width - resized.Width) / 2;
-        int posY = targetBounds.Y + (targetBounds.Height - resized.Height) / 2;
-
-        canvas.Mutate(ctx => ctx.DrawImage(resized, new ImgPoint(posX, posY), 1f));
+        int posX = targetBounds.X + (targetBounds.Width - contained.Width) / 2;
+        int posY = targetBounds.Y + (targetBounds.Height - contained.Height) / 2;
+        canvas.Mutate(ctx => ctx.DrawImage(contained, new ImgPoint(posX, posY), 1f));
     }
 
     protected static ImgSize CalculateFit(ImgSize source, ImgSize bounds)

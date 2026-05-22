@@ -51,14 +51,6 @@ echo --- Staging durumu ---
 git status --short
 echo.
 
-if not exist "commit-msg.txt" (
-    echo PhonixFrame v1.0 — canli onizleme, platform cozunurlukleri, logo yonetimi> commit-msg.txt
-    echo.>> commit-msg.txt
-    echo - Rebrand to PhonixFrame>> commit-msg.txt
-    echo - Live preview, 12 templates, platform export sizes>> commit-msg.txt
-    echo - Logo PNG/JPEG/HEIC, new UI layout>> commit-msg.txt
-)
-
 git diff --cached --quiet
 if errorlevel 1 (
     echo Commit olusturuluyor...

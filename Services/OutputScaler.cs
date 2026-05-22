@@ -13,14 +13,25 @@ public static class OutputScaler
         ExportResolutionProfile profile,
         int sourceWidth,
         int sourceHeight,
-        ImgSize templateSize)
+        ImgSize templateSize,
+        bool stretchToExport = false)
     {
         var target = ResolveTargetSize(
-            profile, sourceWidth, sourceHeight, templateSize, rendered.Width, rendered.Height);
+            profile, sourceWidth, sourceHeight, templateSize, rendered.Width, rendered.Height, stretchToExport);
         if (target.Width == rendered.Width && target.Height == rendered.Height)
             return rendered.CloneAs<Rgba32>();
 
-        var pad = BrandThemeContext.Current.Background;
+        if (stretchToExport)
+        {
+            return rendered.Clone(ctx => ctx.Resize(new ResizeOptions
+            {
+                Size = target,
+                Mode = ResizeMode.Stretch,
+                Sampler = KnownResamplers.Lanczos3
+            }));
+        }
+
+        var pad = BrandThemeColors.Background;
         return rendered.Clone(ctx => ctx.Resize(new ResizeOptions
         {
             Size = target,
@@ -37,8 +48,16 @@ public static class OutputScaler
         int sourceHeight,
         ImgSize templateSize,
         int renderedWidth,
-        int renderedHeight)
+        int renderedHeight,
+        bool stretchToExport = false)
     {
+        if (stretchToExport && profile.Mode == ExportSizeMode.TemplateDefault)
+        {
+            return new ImgSize(
+                Math.Max(1, renderedWidth),
+                Math.Max(1, renderedHeight));
+        }
+
         return profile.Mode switch
         {
             ExportSizeMode.TemplateDefault => new ImgSize(renderedWidth, renderedHeight),
@@ -75,6 +94,17 @@ public static class OutputScaler
             templateSize.Width,
             templateSize.Height);
         return $"Çıktı: {size.Width} × {size.Height} px";
+    }
+
+    public static string FormatTargetLabel(
+        ExportResolutionProfile profile,
+        ImgSize templateSize,
+        int? sampleSourceW,
+        int? sampleSourceH,
+        bool stretchToExport)
+    {
+        string baseLabel = FormatTargetLabel(profile, templateSize, sampleSourceW, sampleSourceH);
+        return stretchToExport ? $"{baseLabel} · tam yay" : baseLabel;
     }
 
     private static ImgSize ScaleToMaxLongEdge(int width, int height, int maxEdge)

@@ -8,14 +8,15 @@
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
         Background="{StaticResource BrandLightBrush}"
-        Loaded="MainWindow_Loaded">
+        Loaded="MainWindow_Loaded"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
 
     <Grid Margin="16,12,16,12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="2.2*" MinHeight="320"/>
-            <RowDefinition Height="12"/>
-            <RowDefinition Height="Auto" MaxHeight="360"/>
+            <RowDefinition Height="*" MinHeight="180" MaxHeight="560"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="1.35*" MinHeight="340"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -37,93 +38,142 @@
         <!-- Üst: Önizleme + Günlük -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*" MinWidth="420"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*" MinWidth="260"/>
+                <ColumnDefinition Width="4.8*" MinWidth="360"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*" MinWidth="200" MaxWidth="320"/>
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Background="White" CornerRadius="10"
-                    Padding="16" BorderBrush="#E2E6ED" BorderThickness="1">
+                    Padding="4" BorderBrush="#E2E6ED" BorderThickness="1">
+                <ScrollViewer x:Name="PreviewScrollViewer"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="8,6,8,6">
+                    <Grid MinHeight="360">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                            <Border x:Name="PreviewModeBadge" DockPanel.Dock="Right" Background="#1B2A4A" CornerRadius="4"
+                                    Padding="10,4" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <TextBlock x:Name="PreviewModeBadgeText" Text="DEMO" Foreground="White" FontWeight="Bold" FontSize="11"/>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Canlı önizleme" FontWeight="SemiBold" FontSize="15"
+                                           Foreground="{StaticResource BrandPrimaryBrush}"/>
+                                <TextBlock Text=" · " FontSize="12" Foreground="#C5CAD6" Margin="2,0"/>
+                                <TextBlock Text="Şablon, renk ve logo değişince anında güncellenir."
+                                           FontSize="11" Foreground="{StaticResource BrandMutedBrush}"
+                                           VerticalAlignment="Center" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <Border Grid.Row="1" Background="#ECEFF4" CornerRadius="8"
+                                BorderBrush="#D0D5DE" BorderThickness="1"
+                                Height="300" MinHeight="220" MaxHeight="420">
+                            <Grid>
+                                <TextBlock x:Name="PreviewPlaceholderText"
+                                           Text="Önizleme hazırlanıyor…"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{StaticResource BrandMutedBrush}" FontSize="14"/>
+                                <Image x:Name="LivePreviewImage" Stretch="Uniform"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="12" Visibility="Collapsed"
+                                       MouseLeftButtonDown="LivePreviewImage_MouseLeftButtonDown"
+                                       Cursor="Arrow"/>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2" Background="#F8F9FB" CornerRadius="6"
+                                Padding="8,6" Margin="0,8,0,0" BorderBrush="#E2E6ED" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock x:Name="PreviewSizeText" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource BrandPrimaryBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="    " VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="PreviewCaptionText" FontSize="11"
+                                               Foreground="{StaticResource BrandMutedBrush}"
+                                               VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <TextBlock Grid.Row="1" x:Name="PreviewErrorText" TextWrapping="Wrap" FontSize="11"
+                                           Foreground="#B42318" Margin="0,4,0,0" Visibility="Collapsed"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </Border>
+
+            <Border Grid.Column="2" Background="White" CornerRadius="10"
+                    Padding="10,10,10,10" BorderBrush="#E2E6ED" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-
-                    <DockPanel Grid.Row="0" Margin="0,0,0,10">
-                        <Border DockPanel.Dock="Right" Background="#1B2A4A" CornerRadius="4"
-                                Padding="10,4" VerticalAlignment="Center">
-                            <TextBlock Text="DEMO" Foreground="White" FontWeight="Bold" FontSize="11"/>
-                        </Border>
-                        <StackPanel>
-                            <TextBlock Text="Canlı önizleme" FontWeight="SemiBold" FontSize="16"
-                                       Foreground="{StaticResource BrandPrimaryBrush}"/>
-                            <TextBlock Text="Şablon, renk ve logo değişince anında güncellenir."
-                                       FontSize="11" Foreground="{StaticResource BrandMutedBrush}" Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </DockPanel>
-
-                    <Border Grid.Row="1" Background="#ECEFF4" CornerRadius="8"
-                            BorderBrush="#D0D5DE" BorderThickness="1" MinHeight="240">
-                        <Grid>
-                            <TextBlock x:Name="PreviewPlaceholderText"
-                                       Text="Önizleme hazırlanıyor…"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{StaticResource BrandMutedBrush}" FontSize="14"/>
-                            <Image x:Name="LivePreviewImage" Stretch="Uniform"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   Margin="16" Visibility="Collapsed"/>
-                        </Grid>
-                    </Border>
-
-                    <Border Grid.Row="2" Background="#F8F9FB" CornerRadius="6"
-                            Padding="10,8" Margin="0,10,0,0" BorderBrush="#E2E6ED" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock x:Name="PreviewSizeText" FontSize="12" FontWeight="SemiBold"
-                                       Foreground="{StaticResource BrandPrimaryBrush}"/>
-                            <TextBlock x:Name="PreviewCaptionText" TextWrapping="Wrap" FontSize="11"
-                                       Foreground="{StaticResource BrandMutedBrush}" Margin="0,2,0,0"/>
-                            <TextBlock x:Name="PreviewErrorText" TextWrapping="Wrap" FontSize="11"
-                                       Foreground="#B42318" Margin="0,4,0,0" Visibility="Collapsed"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="2" Background="White" CornerRadius="10"
-                    Padding="12" BorderBrush="#E2E6ED" BorderThickness="1">
-                <DockPanel LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
                         <TextBlock Text="İşlem günlüğü" FontWeight="SemiBold" FontSize="14"
                                    Foreground="{StaticResource BrandPrimaryBrush}"/>
-                        <TextBlock Text="Toplu işlem sırasında adım adım kayıt."
-                                   FontSize="11" Foreground="{StaticResource BrandMutedBrush}"/>
+                        <TextBlock Text=" · " FontSize="12" Foreground="#C5CAD6" Margin="2,0"/>
+                        <TextBlock Text="Toplu işlem kaydı"
+                                   FontSize="11" Foreground="{StaticResource BrandMutedBrush}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
-                    <Border Background="#F8F9FB" CornerRadius="6" BorderBrush="#E2E6ED" BorderThickness="1"
+                    <Border Grid.Row="1" Background="#F8F9FB" CornerRadius="6" BorderBrush="#E2E6ED" BorderThickness="1"
                             Padding="4">
                         <ListBox x:Name="LogList" BorderThickness="0" Background="Transparent"
                                  FontFamily="Consolas" FontSize="11"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                                 ScrollViewer.VerticalScrollBarVisibility="Visible"/>
                     </Border>
-                </DockPanel>
+                </Grid>
             </Border>
         </Grid>
 
-        <!-- Alt: Ayarlar (iki sütun) -->
+        <!-- Alt: Ayarlar (iki sütun, kaydırılabilir) -->
         <Border Grid.Row="3" Background="White" CornerRadius="10"
-                Padding="14" BorderBrush="#E2E6ED" BorderThickness="1">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+                Padding="14,12,14,12" BorderBrush="#E2E6ED" BorderThickness="1">
+            <DockPanel LastChildFill="True">
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="⚙" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Ayarlar" FontWeight="SemiBold" FontSize="14"
+                                   Foreground="{StaticResource BrandPrimaryBrush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Grid Grid.Column="1" Margin="16,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" MinWidth="120"/>
+                            <ColumnDefinition Width="*" MinWidth="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Profil" Style="{StaticResource FieldLabel}" Margin="0,0,8,0"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox x:Name="PresetCombo" Grid.Column="1" DisplayMemberPath="Name" Height="30"
+                                  SelectionChanged="PresetCombo_SelectionChanged" Margin="0,0,6,0"/>
+                        <TextBox x:Name="PresetNameBox" Grid.Column="2" Height="30"
+                                 VerticalContentAlignment="Center" Padding="6,0" Margin="0,0,6,0"
+                                 ToolTip="Profil adı"/>
+                        <Button x:Name="SavePresetButton" Grid.Column="3" Content="💾 Kaydet"
+                                Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,6,0"
+                                Click="SavePreset_Click"/>
+                        <Button Grid.Column="4" Content="Sil" Style="{StaticResource SecondaryButton}"
+                                Padding="10,5" Click="DeletePreset_Click"/>
+                    </Grid>
+                </Grid>
 
-                <TextBlock Grid.Row="0" Text="Ayarlar" FontWeight="SemiBold" FontSize="14"
-                           Foreground="{StaticResource BrandPrimaryBrush}" Margin="0,0,0,12"/>
-
-                <Grid Grid.Row="1">
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="20"/>
@@ -131,61 +181,235 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Sol: Şablon + Renk + Marka -->
-                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Visible"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,8,12">
                         <StackPanel>
                             <TextBlock Text="Şablon" Style="{StaticResource SectionTitle}"/>
-                            <ComboBox x:Name="TemplateCombo" DisplayMemberPath="Name"
-                                      SelectionChanged="TemplateCombo_SelectionChanged"
-                                      Height="32" Margin="0,0,0,4"/>
-                            <TextBlock x:Name="TemplateDescription" TextWrapping="Wrap"
-                                       Foreground="{StaticResource BrandMutedBrush}"
-                                       FontSize="12" Margin="0,0,0,12"/>
-
-                            <TextBlock Text="Renk paketi" Style="{StaticResource SectionTitle}"/>
-                            <ComboBox x:Name="ColorPackCombo" DisplayMemberPath="Name"
-                                      SelectionChanged="ColorPackCombo_SelectionChanged"
-                                      Height="32" Margin="0,0,0,4"/>
-                            <TextBlock x:Name="ColorPackDescription" TextWrapping="Wrap"
-                                       Foreground="{StaticResource BrandMutedBrush}"
-                                       FontSize="12" Margin="0,0,0,8"/>
-
-                            <Grid Margin="0,0,0,12">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="88"/>
-                                    <ColumnDefinition Width="28"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Zemin" Style="{StaticResource FieldLabel}"/>
-                                <Border x:Name="BackgroundColorPreview" Grid.Row="0" Grid.Column="1"
-                                        Height="22" CornerRadius="4" BorderBrush="#D0D5DE" BorderThickness="1"/>
-                                <TextBlock x:Name="BackgroundColorHex" Grid.Row="0" Grid.Column="2" Style="{StaticResource HexLabel}"/>
-                                <Button x:Name="PickBackgroundColorButton" Grid.Row="0" Grid.Column="3"
-                                        Content="Seç…" Style="{StaticResource SecondaryButton}"
-                                        Padding="8,4" Click="PickBackgroundColor_Click"/>
-
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="RONEKAI" Style="{StaticResource FieldLabel}" Margin="0,6,0,0"/>
-                                <Border x:Name="RonekaiColorPreview" Grid.Row="1" Grid.Column="1"
-                                        Height="22" CornerRadius="4" BorderBrush="#D0D5DE" BorderThickness="1" Margin="0,6,0,0"/>
-                                <TextBlock x:Name="RonekaiColorHex" Grid.Row="1" Grid.Column="2" Style="{StaticResource HexLabel}" Margin="0,6,0,0"/>
-                                <Button x:Name="PickRonekaiColorButton" Grid.Row="1" Grid.Column="3"
-                                        Content="Seç…" Style="{StaticResource SecondaryButton}"
-                                        Padding="8,4" Margin="0,6,0,0" Click="PickRonekaiColor_Click"/>
-
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text=".DEN" Style="{StaticResource FieldLabel}" Margin="0,6,0,0"/>
-                                <Border x:Name="DenColorPreview" Grid.Row="2" Grid.Column="1"
-                                        Height="22" CornerRadius="4" BorderBrush="#D0D5DE" BorderThickness="1" Margin="0,6,0,0"/>
-                                <TextBlock x:Name="DenColorHex" Grid.Row="2" Grid.Column="2" Style="{StaticResource HexLabel}" Margin="0,6,0,0"/>
-                                <Button x:Name="PickDenColorButton" Grid.Row="2" Grid.Column="3"
-                                        Content="Seç…" Style="{StaticResource SecondaryButton}"
-                                        Padding="8,4" Margin="0,6,0,0" Click="PickDenColor_Click"/>
+                                <ComboBox x:Name="TemplateCombo" DisplayMemberPath="Name"
+                                          SelectionChanged="TemplateCombo_SelectionChanged"
+                                          Height="32"/>
+                                <Button x:Name="FavoriteTemplateButton" Grid.Column="1" Content="☆"
+                                        Margin="6,0,0,0" Padding="10,4" ToolTip="Favoriye ekle / çıkar"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Click="FavoriteTemplate_Click"/>
                             </Grid>
+                            <TextBlock x:Name="TemplateDescription" TextWrapping="Wrap" MaxHeight="36"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{StaticResource BrandMutedBrush}"
+                                       FontSize="11" Margin="0,0,0,6"/>
+                            <CheckBox x:Name="ResponsiveProductFitCheck"
+                                      Content="Responsif sığdır (boşlukları doldur, kenarlar kırpılabilir)"
+                                      Margin="0,0,0,10" FontSize="11"
+                                      Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
+
+                            <!-- Renk: üstte ve vurgulu kart -->
+                            <Border x:Name="ColorSettingsPanel" Background="#F8F9FB" CornerRadius="8" Padding="12,10"
+                                    BorderBrush="#D8DEE8" BorderThickness="1" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Renk paketi" FontWeight="SemiBold" FontSize="13"
+                                               Foreground="{StaticResource BrandPrimaryBrush}" Margin="0,0,0,6"/>
+                                    <ComboBox x:Name="ColorPackCombo" DisplayMemberPath="Name"
+                                              SelectionChanged="ColorPackCombo_SelectionChanged"
+                                              Height="32" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="ColorPackDescription" TextWrapping="Wrap" MaxHeight="32"
+                                               Foreground="{StaticResource BrandMutedBrush}"
+                                               FontSize="11" Margin="0,0,0,8"/>
+
+                                    <TextBlock x:Name="ColorFieldsHintText"
+                                               FontSize="10" Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+
+                                    <TextBlock x:Name="EyedropperHintText" Visibility="Collapsed"
+                                               FontSize="10" FontWeight="SemiBold" Foreground="#0A6EBD"
+                                               Margin="0,0,0,6" TextWrapping="Wrap"/>
+
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="72"/>
+                                            <ColumnDefinition Width="32"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="BackgroundColorLabel" Text="Zemin" Style="{StaticResource FieldLabel}"/>
+                                        <Border x:Name="BackgroundColorPreview" Grid.Column="1" Height="28" Width="32"
+                                                CornerRadius="4" BorderBrush="#D0D5DE" BorderThickness="1" Cursor="Hand"
+                                                MouseLeftButtonUp="PickBackgroundColor_Click"/>
+                                        <TextBox x:Name="BackgroundColorHexBox" Grid.Column="2" Height="28"
+                                                 FontFamily="Consolas" FontSize="11" Margin="6,0,6,0"
+                                                 VerticalContentAlignment="Center" Padding="6,0"
+                                                 Tag="Background" KeyDown="ColorInputBox_KeyDown" LostFocus="ColorInputBox_LostFocus"/>
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                            <Button Content="Damla" Style="{StaticResource SecondaryButton}"
+                                                    Padding="8,5" MinWidth="44" Margin="0,0,4,0"
+                                                    Tag="Background" ToolTip="Önizleme görselinden renk al (damla)"
+                                                    Click="EyedropColor_Click"/>
+                                            <Button x:Name="PickBackgroundColorButton"
+                                                    Content="Seç…" Style="{StaticResource SecondaryButton}"
+                                                    Padding="8,5" MinWidth="48" Click="PickBackgroundColor_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="72"/>
+                                            <ColumnDefinition Width="32"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="MainTextColorLabel" Text="Ana metin" Style="{StaticResource FieldLabel}"/>
+                                        <Border x:Name="RonekaiColorPreview" Grid.Column="1" Height="28" Width="32"
+                                                CornerRadius="4" BorderBrush="#D0D5DE" BorderThickness="1" Cursor="Hand"
+                                                MouseLeftButtonUp="PickRonekaiColor_Click"/>
+                                        <TextBox x:Name="RonekaiColorHexBox" Grid.Column="2" Height="28"
+                                                 FontFamily="Consolas" FontSize="11" Margin="6,0,6,0"
+                                                 VerticalContentAlignment="Center" Padding="6,0"
+                                                 Tag="MainText" KeyDown="ColorInputBox_KeyDown" LostFocus="ColorInputBox_LostFocus"/>
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                            <Button Content="Damla" Style="{StaticResource SecondaryButton}"
+                                                    Padding="8,5" MinWidth="44" Margin="0,0,4,0"
+                                                    Tag="MainText" ToolTip="Önizleme görselinden renk al (damla)"
+                                                    Click="EyedropColor_Click"/>
+                                            <Button x:Name="PickRonekaiColorButton"
+                                                    Content="Seç…" Style="{StaticResource SecondaryButton}"
+                                                    Padding="8,5" MinWidth="48" Click="PickRonekaiColor_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="72"/>
+                                            <ColumnDefinition Width="32"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="SuffixColorLabel" Text="Ek metin" Style="{StaticResource FieldLabel}"/>
+                                        <Border x:Name="DenColorPreview" Grid.Column="1" Height="28" Width="32"
+                                                CornerRadius="4" BorderBrush="#D0D5DE" BorderThickness="1" Cursor="Hand"
+                                                MouseLeftButtonUp="PickDenColor_Click"/>
+                                        <TextBox x:Name="DenColorHexBox" Grid.Column="2" Height="28"
+                                                 FontFamily="Consolas" FontSize="11" Margin="6,0,6,0"
+                                                 VerticalContentAlignment="Center" Padding="6,0"
+                                                 Tag="Suffix" KeyDown="ColorInputBox_KeyDown" LostFocus="ColorInputBox_LostFocus"/>
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                            <Button Content="Damla" Style="{StaticResource SecondaryButton}"
+                                                    Padding="8,5" MinWidth="44" Margin="0,0,4,0"
+                                                    Tag="Suffix" ToolTip="Önizleme görselinden renk al (damla)"
+                                                    Click="EyedropColor_Click"/>
+                                            <Button x:Name="PickDenColorButton"
+                                                    Content="Seç…" Style="{StaticResource SecondaryButton}"
+                                                    Padding="8,5" MinWidth="48" Click="PickDenColor_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Expander Header="Opaklık ve gradyan" Margin="0,8,0,0" IsExpanded="False">
+                                        <StackPanel Margin="0,6,0,0">
+                                            <TextBlock Text="Zemin" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="72"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="56"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Tür" Style="{StaticResource FieldLabel}"/>
+                                                <ComboBox x:Name="BackgroundFillModeCombo" Grid.Column="1" Height="26" Margin="4,0,4,0"
+                                                          SelectionChanged="ColorAppearance_Changed"/>
+                                                <TextBlock x:Name="BackgroundOpacityLabel" Grid.Column="2" VerticalAlignment="Center" FontSize="10"/>
+                                            </Grid>
+                                            <Slider x:Name="BackgroundOpacitySlider" Minimum="0" Maximum="100" Value="100"
+                                                    TickFrequency="10" IsSnapToTickEnabled="False"
+                                                    ValueChanged="ColorAppearanceSlider_Changed" Margin="0,0,0,4"/>
+                                            <Grid x:Name="BackgroundGradientPanel" Visibility="Collapsed" Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="72"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Gradyan" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox x:Name="BackgroundGradientEndHexBox" Grid.Column="1" Height="26"
+                                                         FontFamily="Consolas" FontSize="10" Margin="4,0,4,0"
+                                                         Tag="Background" KeyDown="GradientEndBox_KeyDown" LostFocus="GradientEndBox_LostFocus"/>
+                                                <ComboBox x:Name="BackgroundGradientDirectionCombo" Grid.Column="2" Width="88" Height="26"
+                                                          SelectionChanged="ColorAppearance_Changed"/>
+                                            </Grid>
+
+                                            <TextBlock Text="Ana metin" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,4"/>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="72"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="56"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Tür" Style="{StaticResource FieldLabel}"/>
+                                                <ComboBox x:Name="MainTextFillModeCombo" Grid.Column="1" Height="26" Margin="4,0,4,0"
+                                                          SelectionChanged="ColorAppearance_Changed"/>
+                                                <TextBlock x:Name="MainTextOpacityLabel" Grid.Column="2" VerticalAlignment="Center" FontSize="10"/>
+                                            </Grid>
+                                            <Slider x:Name="MainTextOpacitySlider" Minimum="0" Maximum="100" Value="100"
+                                                    ValueChanged="ColorAppearanceSlider_Changed" Margin="0,0,0,4"/>
+                                            <Grid x:Name="MainTextGradientPanel" Visibility="Collapsed" Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="72"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Gradyan" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox x:Name="MainTextGradientEndHexBox" Grid.Column="1" Height="26"
+                                                         FontFamily="Consolas" FontSize="10" Margin="4,0,4,0"
+                                                         Tag="MainText" KeyDown="GradientEndBox_KeyDown" LostFocus="GradientEndBox_LostFocus"/>
+                                                <ComboBox x:Name="MainTextGradientDirectionCombo" Grid.Column="2" Width="88" Height="26"
+                                                          SelectionChanged="ColorAppearance_Changed"/>
+                                            </Grid>
+
+                                            <TextBlock Text="Ek metin" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,4"/>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="72"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="56"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Tür" Style="{StaticResource FieldLabel}"/>
+                                                <ComboBox x:Name="SuffixFillModeCombo" Grid.Column="1" Height="26" Margin="4,0,4,0"
+                                                          SelectionChanged="ColorAppearance_Changed"/>
+                                                <TextBlock x:Name="SuffixOpacityLabel" Grid.Column="2" VerticalAlignment="Center" FontSize="10"/>
+                                            </Grid>
+                                            <Slider x:Name="SuffixOpacitySlider" Minimum="0" Maximum="100" Value="100"
+                                                    ValueChanged="ColorAppearanceSlider_Changed" Margin="0,0,0,4"/>
+                                            <Grid x:Name="SuffixGradientPanel" Visibility="Collapsed">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="72"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Gradyan" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox x:Name="SuffixGradientEndHexBox" Grid.Column="1" Height="26"
+                                                         FontFamily="Consolas" FontSize="10" Margin="4,0,4,0"
+                                                         Tag="Suffix" KeyDown="GradientEndBox_KeyDown" LostFocus="GradientEndBox_LostFocus"/>
+                                                <ComboBox x:Name="SuffixGradientDirectionCombo" Grid.Column="2" Width="88" Height="26"
+                                                          SelectionChanged="ColorAppearance_Changed"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <Expander Header="RGB değerleri (isteğe bağlı)" Margin="0,8,0,0" IsExpanded="False">
+                                        <StackPanel Margin="0,6,0,0">
+                                            <TextBox x:Name="BackgroundColorRgbBox" Height="26" FontFamily="Consolas" FontSize="10"
+                                                     VerticalContentAlignment="Center" Padding="6,0" Margin="0,0,0,4"
+                                                     Tag="Background" KeyDown="ColorInputBox_KeyDown" LostFocus="ColorInputBox_LostFocus"/>
+                                            <TextBox x:Name="RonekaiColorRgbBox" Height="26" FontFamily="Consolas" FontSize="10"
+                                                     VerticalContentAlignment="Center" Padding="6,0" Margin="0,0,0,4"
+                                                     Tag="MainText" KeyDown="ColorInputBox_KeyDown" LostFocus="ColorInputBox_LostFocus"/>
+                                            <TextBox x:Name="DenColorRgbBox" Height="26" FontFamily="Consolas" FontSize="10"
+                                                     VerticalContentAlignment="Center" Padding="6,0"
+                                                     Tag="Suffix" KeyDown="ColorInputBox_KeyDown" LostFocus="ColorInputBox_LostFocus"/>
+                                        </StackPanel>
+                                    </Expander>
+                                </StackPanel>
+                            </Border>
 
                             <TextBlock Text="Görseldeki marka" Style="{StaticResource SectionTitle}"/>
                             <TextBlock Text="Önizleme ve çıktıdaki metin"
@@ -200,7 +424,7 @@
                                          VerticalContentAlignment="Center" Padding="6,0"
                                          TextChanged="ImageBrand_TextChanged"/>
                             </Grid>
-                            <Grid>
+                            <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="72"/>
                                     <ColumnDefinition Width="*"/>
@@ -214,14 +438,71 @@
                                         Style="{StaticResource SecondaryButton}" Padding="8,4"
                                         Click="CopyBrandFromHeader_Click"/>
                             </Grid>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="72"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Ana font" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="BrandMainFontCombo" Grid.Column="1" Height="28"
+                                          DisplayMemberPath="Name"
+                                          SelectionChanged="BrandFont_Changed"/>
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="72"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Ek font" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="BrandSuffixFontCombo" Grid.Column="1" Height="28"
+                                          DisplayMemberPath="Name"
+                                          SelectionChanged="BrandFont_Changed"/>
+                            </Grid>
+
+                            <CheckBox x:Name="ShowImageBrandMainCheck" Content="Ana metni göster"
+                                      Margin="0,8,0,4" IsChecked="True"
+                                      Checked="ImageBrandVisibility_Changed" Unchecked="ImageBrandVisibility_Changed"/>
+                            <TextBlock Text="Ana metin boyutu" FontSize="10"
+                                       Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,2"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="40"/>
+                                </Grid.ColumnDefinitions>
+                                <Slider x:Name="ImageBrandMainSizeSlider" Minimum="50" Maximum="200" Value="100"
+                                        VerticalAlignment="Center"
+                                        ValueChanged="ImageBrandSize_Changed"/>
+                                <TextBlock x:Name="ImageBrandMainSizeLabel" Grid.Column="1" Text="100%"
+                                           VerticalAlignment="Center" FontSize="11"
+                                           Foreground="{StaticResource BrandMutedBrush}"/>
+                            </Grid>
+
+                            <CheckBox x:Name="ShowImageBrandSuffixCheck" Content="Ek / son metni göster"
+                                      Margin="0,0,0,4" IsChecked="True"
+                                      Checked="ImageBrandVisibility_Changed" Unchecked="ImageBrandVisibility_Changed"/>
+                            <TextBlock Text="Ek metin boyutu" FontSize="10"
+                                       Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,2"/>
+                            <Grid Margin="0,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="40"/>
+                                </Grid.ColumnDefinitions>
+                                <Slider x:Name="ImageBrandSuffixSizeSlider" Minimum="50" Maximum="200" Value="100"
+                                        VerticalAlignment="Center"
+                                        ValueChanged="ImageBrandSize_Changed"/>
+                                <TextBlock x:Name="ImageBrandSuffixSizeLabel" Grid.Column="1" Text="100%"
+                                           VerticalAlignment="Center" FontSize="11"
+                                           Foreground="{StaticResource BrandMutedBrush}"/>
+                            </Grid>
                         </StackPanel>
                     </ScrollViewer>
 
                     <Rectangle Grid.Column="1" Width="1" Fill="#E2E6ED" HorizontalAlignment="Center"/>
 
                     <!-- Sağ: Logo + Klasör -->
-                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Visible"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="8,0,0,12">
                         <StackPanel>
                             <TextBlock Text="Logo" Style="{StaticResource SectionTitle}"/>
                             <ComboBox x:Name="LogoModeCombo" DisplayMemberPath="Name"
@@ -264,20 +545,91 @@
                             </Grid>
 
                             <TextBlock Text="Kaynak klasör" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock Text="JPG, PNG, WEBP, HEIC — alt klasörler dahil"
+                            <TextBlock Text="JPG, PNG, WEBP, HEIC — sürükle-bırak veya Gözat"
                                        FontSize="11" Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,6"/>
-                            <Grid Margin="0,0,0,12">
+                            <Border x:Name="SourceDropZone" Margin="0,0,0,6" CornerRadius="6"
+                                    BorderBrush="#D0D5DE" BorderThickness="1" Background="#FAFBFC"
+                                    AllowDrop="True" DragOver="SourceDropZone_DragOver" Drop="SourceDropZone_Drop">
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="SourceFolderBox" Height="30" VerticalContentAlignment="Center"
+                                             Padding="8,0" Background="Transparent" BorderThickness="0"
+                                             TextChanged="SourceFolderBox_TextChanged"/>
+                                    <Button Grid.Column="1" Content="Gözat…" Margin="8,4,4,4"
+                                            Style="{StaticResource SecondaryButton}" Padding="10,6"
+                                            Click="BrowseSource_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBox x:Name="SourceFolderBox" Height="30" VerticalContentAlignment="Center"
-                                         Padding="8,0" Background="{StaticResource BrandLightBrush}"
-                                         BorderBrush="#D0D5DE" TextChanged="SourceFolderBox_TextChanged"/>
-                                <Button Grid.Column="1" Content="Gözat…" Margin="8,0,0,0"
-                                        Style="{StaticResource SecondaryButton}" Padding="10,6"
-                                        Click="BrowseSource_Click"/>
+                                <TextBlock Text="Dosya listesi (Ctrl ile çoklu seçim)" FontSize="11"
+                                           Foreground="{StaticResource BrandMutedBrush}" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Content="Yenile" Margin="6,0,0,0"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,3"
+                                        Click="RefreshFileList_Click"/>
+                                <Button Grid.Column="2" Content="Tümü" Margin="6,0,0,0"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,3"
+                                        Click="SelectAllFiles_Click"/>
                             </Grid>
+                            <CheckBox x:Name="ProcessSelectedOnlyCheck" Content="Yalnızca listede seçili dosyaları işle"
+                                      Margin="0,0,0,4" Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
+                            <Border Background="#F8F9FB" CornerRadius="6" BorderBrush="#E2E6ED" BorderThickness="1"
+                                    MaxHeight="120" Margin="0,0,0,12">
+                                <ListBox x:Name="SourceFileList" BorderThickness="0" Background="Transparent"
+                                         FontSize="11" SelectionMode="Extended"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                            </Border>
+
+                            <Expander Header="Gelişmiş ayarlar" IsExpanded="False" Margin="0,0,0,12">
+                                <StackPanel Margin="0,8,0,0">
+                                    <CheckBox x:Name="ResizeOnlyCheck" Content="Sadece boyutlandır (şablon uygulanmaz)"
+                                              Margin="0,0,0,8" Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
+
+                                    <TextBlock Text="JPEG kalitesi" Style="{StaticResource FieldLabel}"/>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="36"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="JpegQualitySlider" Minimum="50" Maximum="100" Value="92"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="JpegQualityLabel" Grid.Column="1" Text="92"
+                                                   VerticalAlignment="Center" FontSize="12"
+                                                   Foreground="{StaticResource BrandMutedBrush}"/>
+                                    </Grid>
+
+                                    <CheckBox x:Name="SaveAsPngCheck" Content="PNG olarak kaydet (JPEG yerine)"
+                                              Margin="0,0,0,8" Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
+
+                                    <TextBlock Text="Dosya adı şablonu" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox x:Name="OutputFileNameBox" Height="28" Margin="0,0,0,4"
+                                             VerticalContentAlignment="Center" Padding="6,0"
+                                             LostFocus="AdvancedOption_Changed"/>
+
+                                    <CheckBox x:Name="TextOverlayEnabledCheck" Content="Ek metin (fiyat, SKU, kampanya)"
+                                              Margin="0,0,0,4" Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
+                                    <TextBox x:Name="TextOverlayTextBox" Height="28" Margin="0,0,0,4"
+                                             VerticalContentAlignment="Center" Padding="6,0"
+                                             IsEnabled="False" TextChanged="AdvancedOption_Changed"/>
+                                    <ComboBox x:Name="TextOverlayPositionCombo" Height="28" Margin="0,0,0,8"
+                                              SelectionChanged="AdvancedOption_Changed"/>
+
+                                    <TextBlock Text="İşlem öncesi örnek (0 = kapalı)" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox x:Name="SamplePreviewCountBox" Height="28" Margin="0,0,0,4"
+                                             VerticalContentAlignment="Center" Padding="6,0" Text="0"
+                                             LostFocus="AdvancedOption_Changed"/>
+                                    <TextBlock Text="Seçilen sayıda dosya _Onizleme_Ornekleri alt klasörüne işlenir"
+                                               FontSize="10" Foreground="{StaticResource BrandMutedBrush}"/>
+                                </StackPanel>
+                            </Expander>
 
                             <TextBlock Text="Çıktı" Style="{StaticResource SectionTitle}"/>
                             <TextBlock Text="Kaynak klasörün içinde PhonixFrame_tarih_saat klasörü"
@@ -287,7 +639,7 @@
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
-            </Grid>
+            </DockPanel>
         </Border>
 
         <!-- İlerleme -->

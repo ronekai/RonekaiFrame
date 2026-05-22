@@ -1,74 +1,92 @@
-<Window x:Class="RonekaiImageFramer.HeaderBrandingWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Üst marka — logo veya metin"
-        Height="520" Width="480"
-        WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
-        Background="{StaticResource BrandLightBrush}">
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <TextBlock Text="Sol üst başlık: metin, logo veya ikisi birlikte"
-                   TextWrapping="Wrap" Foreground="{StaticResource BrandMutedBrush}"
-                   FontSize="13" Margin="0,0,0,12"/>
-
-        <StackPanel Grid.Row="1">
-            <TextBlock Text="Görünüm" Style="{StaticResource SectionTitle}"/>
-            <ComboBox x:Name="ModeCombo" Height="32" Margin="0,0,0,12"
-                      SelectionChanged="ModeCombo_SelectionChanged"/>
-
-            <TextBlock Text="Ana metin (büyük)" Style="{StaticResource SectionTitle}"/>
-            <TextBox x:Name="MainTextBox" Height="32" Padding="8,0" Margin="0,0,0,10"/>
-
-            <TextBlock Text="Ek metin (küçük, örn. .DEN)" Style="{StaticResource SectionTitle}"/>
-            <TextBox x:Name="SuffixTextBox" Height="32" Padding="8,0" Margin="0,0,0,10"/>
-
-            <TextBlock Text="Alt satır (isteğe bağlı)" Style="{StaticResource SectionTitle}"/>
-            <TextBox x:Name="TaglineTextBox" Height="32" Padding="8,0" Margin="0,0,0,12"/>
-
-            <TextBlock Text="Logo dosyası" Style="{StaticResource SectionTitle}"/>
-            <Grid Margin="0,0,0,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBox x:Name="HeaderLogoPathBox" Height="30" Padding="8,0" IsReadOnly="True"/>
-                <Button Grid.Column="1" Content="Gözat…" Margin="8,0,0,0"
-                        Style="{StaticResource SecondaryButton}" Padding="12,6"
-                        Click="BrowseHeaderLogo_Click"/>
-            </Grid>
-
-            <TextBlock Text="Önizleme" Style="{StaticResource SectionTitle}"/>
-            <Border Background="White" BorderBrush="#E2E6ED" BorderThickness="1"
-                    CornerRadius="8" Padding="12" MinHeight="72">
-                <StackPanel x:Name="PreviewPanel" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image x:Name="PreviewLogo" MaxHeight="44" Margin="0,0,12,0"
-                           Visibility="Collapsed"/>
-                    <StackPanel x:Name="PreviewTextPanel" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="PreviewMain" FontSize="22" FontWeight="Bold"
-                                       Foreground="{StaticResource BrandPrimaryBrush}"/>
-                            <TextBlock x:Name="PreviewSuffix" FontSize="12"
-                                       Foreground="{StaticResource BrandAccentBrush}"
-                                       VerticalAlignment="Bottom" Margin="2,0,0,3"/>
-                        </StackPanel>
-                        <TextBlock x:Name="PreviewTagline" FontSize="11"
-                                   Foreground="{StaticResource BrandMutedBrush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Content="İptal" Width="90" Margin="0,0,10,0" IsCancel="True" Click="Cancel_Click"
-                    Style="{StaticResource SecondaryButton}"/>
-            <Button Content="Kaydet" Width="90" IsDefault="True" Click="Save_Click"
-                    Style="{StaticResource PrimaryButton}"/>
-        </StackPanel>
-    </Grid>
-</Window>
+<Window x:Class="RonekaiImageFramer.HeaderBrandingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Üst marka — logo veya metin"
+        Height="640" Width="500" MinHeight="520" MinWidth="440"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="{StaticResource BrandLightBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Sol üst başlık: metin, logo veya ikisi birlikte"
+                       TextWrapping="Wrap" Foreground="{StaticResource BrandMutedBrush}"
+                       FontSize="13"/>
+            <TextBlock Text="Bu ayarlar ana pencerenin sol üst köşesini değiştirir (işlenen görselleri değil)."
+                       TextWrapping="Wrap" Foreground="{StaticResource BrandMutedBrush}"
+                       FontSize="11" Margin="0,6,0,0"/>
+        </StackPanel>
+
+        <!-- Önizleme üstte, her zaman görünür -->
+        <Border Grid.Row="1" Background="#F8F9FB" BorderBrush="#D8DEE8" BorderThickness="1"
+                CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Önizleme — ana pencere sol üst" FontWeight="SemiBold" FontSize="12"
+                           Foreground="{StaticResource BrandPrimaryBrush}" Margin="0,0,0,8"/>
+                <Border Background="White" BorderBrush="#E2E6ED" BorderThickness="1"
+                        CornerRadius="6" Padding="14,10" MinHeight="88">
+                    <StackPanel x:Name="PreviewPanel" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Image x:Name="PreviewLogo" MaxHeight="48" MaxWidth="120" Margin="0,0,12,0"
+                               Stretch="Uniform" Visibility="Collapsed"/>
+                        <StackPanel x:Name="PreviewTextPanel" VerticalAlignment="Center">
+                            <StackPanel x:Name="PreviewTitleRow" Orientation="Horizontal">
+                                <TextBlock x:Name="PreviewMain" FontSize="26" FontWeight="Bold"
+                                           Foreground="{StaticResource BrandPrimaryBrush}"/>
+                                <TextBlock x:Name="PreviewSuffix" FontSize="13"
+                                           Foreground="{StaticResource BrandAccentBrush}"
+                                           VerticalAlignment="Bottom" Margin="2,0,0,4"/>
+                            </StackPanel>
+                            <TextBlock x:Name="PreviewTagline" FontSize="12"
+                                       Foreground="{StaticResource BrandMutedBrush}" Margin="0,4,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      Padding="0,0,4,0">
+            <StackPanel>
+                <TextBlock Text="Görünüm" Style="{StaticResource SectionTitle}"/>
+                <ComboBox x:Name="ModeCombo" Height="32" Margin="0,0,0,12"
+                          SelectionChanged="ModeCombo_SelectionChanged"/>
+
+                <TextBlock Text="Ana metin (büyük)" Style="{StaticResource SectionTitle}"/>
+                <TextBox x:Name="MainTextBox" Height="32" Padding="8,0" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Ek metin (küçük, örn. .DEN)" Style="{StaticResource SectionTitle}"/>
+                <TextBox x:Name="SuffixTextBox" Height="32" Padding="8,0" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Alt satır (isteğe bağlı)" Style="{StaticResource SectionTitle}"/>
+                <TextBox x:Name="TaglineTextBox" Height="32" Padding="8,0" Margin="0,0,0,12"/>
+
+                <TextBlock Text="Logo dosyası" Style="{StaticResource SectionTitle}"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="HeaderLogoPathBox" Height="30" Padding="8,0" IsReadOnly="True"
+                             TextWrapping="NoWrap" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Content="Gözat…" Margin="8,0,0,0"
+                            Style="{StaticResource SecondaryButton}" Padding="12,6"
+                            Click="BrowseHeaderLogo_Click"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="İptal" Width="90" Margin="0,0,10,0" IsCancel="True" Click="Cancel_Click"
+                    Style="{StaticResource SecondaryButton}"/>
+            <Button Content="Kaydet" Width="90" IsDefault="True" Click="Save_Click"
+                    Style="{StaticResource PrimaryButton}"/>
+        </StackPanel>
+    </Grid>
+</Window>

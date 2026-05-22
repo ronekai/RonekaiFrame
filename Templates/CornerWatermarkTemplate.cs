@@ -25,7 +25,6 @@ public sealed class CornerWatermarkTemplate : TemplateBase
             Sampler = KnownResamplers.Lanczos3
         }));
 
-        BrandRenderer.DrawCornerWatermark(canvas);
         return canvas;
     }
 }

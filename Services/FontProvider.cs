@@ -1,3 +1,4 @@
+using RonekaiImageFramer.Models;
 using SixLabors.Fonts;
 using SixLaborsFontFamily = SixLabors.Fonts.FontFamily;
 
@@ -5,44 +6,60 @@ namespace RonekaiImageFramer.Services;
 
 public static class FontProvider
 {
-    private static readonly string[] BoldCandidates =
+    private static readonly Dictionary<string, SixLaborsFontFamily> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly string[] BoldFallback =
     [
         @"C:\Windows\Fonts\segoeuib.ttf",
         @"C:\Windows\Fonts\arialbd.ttf",
-        @"C:\Windows\Fonts\calibrib.ttf",
     ];
 
-    private static readonly string[] RegularCandidates =
+    private static readonly string[] RegularFallback =
     [
         @"C:\Windows\Fonts\segoeui.ttf",
         @"C:\Windows\Fonts\arial.ttf",
-        @"C:\Windows\Fonts\calibri.ttf",
     ];
 
-    private static SixLaborsFontFamily? _bold;
-    private static SixLaborsFontFamily? _regular;
+    public static SixLaborsFontFamily GetBoldFamily(string? fontId = null) =>
+        LoadFamily(BrandFontRegistry.GetById(fontId)?.BoldFontPath, BoldFallback);
 
-    public static SixLaborsFontFamily GetBoldFamily() =>
-        _bold ??= LoadFamily(BoldCandidates) ?? SystemFonts.Families.First();
+    public static SixLaborsFontFamily GetRegularFamily(string? fontId = null) =>
+        LoadFamily(BrandFontRegistry.GetById(fontId)?.RegularFontPath, RegularFallback);
 
-    public static SixLaborsFontFamily GetRegularFamily() =>
-        _regular ??= LoadFamily(RegularCandidates) ?? SystemFonts.Families.First();
-
-    private static SixLaborsFontFamily? LoadFamily(IEnumerable<string> paths)
+    private static SixLaborsFontFamily LoadFamily(string? primaryPath, string[] fallbacks)
     {
-        foreach (var path in paths)
+        if (!string.IsNullOrEmpty(primaryPath) && TryLoadCached(primaryPath) is { } primary)
+            return primary;
+
+        foreach (var path in fallbacks)
         {
-            if (!File.Exists(path)) continue;
-            try
-            {
-                return new FontCollection().Add(path);
-            }
-            catch
-            {
-                // sonraki font
-            }
+            if (TryLoadCached(path) is { } fallback)
+                return fallback;
         }
 
-        return null;
+        if (SystemFonts.Families.Any())
+            return SystemFonts.Families.First();
+
+        throw new InvalidOperationException("Sistem fontu bulunamadı. Windows font klasörünü kontrol edin.");
+    }
+
+    private static SixLaborsFontFamily? TryLoadCached(string path)
+    {
+        if (!File.Exists(path))
+            return null;
+
+        if (Cache.TryGetValue(path, out var cached))
+            return cached;
+
+        try
+        {
+            var family = new FontCollection().Add(path);
+            Cache[path] = family;
+            return family;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

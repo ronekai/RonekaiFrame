@@ -9,8 +9,6 @@ namespace RonekaiImageFramer.Templates;
 
 public sealed class InstagramSquareTemplate : TemplateBase
 {
-    private static BrandColorTheme Theme => BrandThemeContext.Current;
-
     public override string Id => "instagram-square";
     public override string Name => "Instagram Kare";
     public override string Description => "1080×1080 sosyal medya kare formatı.";
@@ -21,7 +19,7 @@ public sealed class InstagramSquareTemplate : TemplateBase
         var canvas = CreateCanvas(OutputSize);
         int margin = (int)(OutputSize.Width * 0.06);
         var bounds = new ImgRectangle(margin, margin, OutputSize.Width - margin * 2, OutputSize.Height - margin * 2);
-        DrawProductContained(canvas, source, bounds, Theme.Background);
+        DrawProductContained(canvas, source, bounds, ThemeColorSlot.Background);
         return canvas;
     }
 }

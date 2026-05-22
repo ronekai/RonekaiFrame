@@ -12,6 +12,12 @@ public static class WpfImageHelper
 {
     public static BitmapSource ToBitmapSource(Image<Rgba32> image, int? maxWidth = null)
     {
+        var png = EncodePng(image, maxWidth);
+        return FromPngBytes(png);
+    }
+
+    public static byte[] EncodePng(Image<Rgba32> image, int? maxWidth = null)
+    {
         Image<Rgba32> work = image;
         Image<Rgba32>? scaled = null;
 
@@ -27,19 +33,24 @@ public static class WpfImageHelper
         {
             using var ms = new MemoryStream();
             work.Save(ms, new PngEncoder());
-            ms.Position = 0;
-
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = ms;
-            bitmap.EndInit();
-            bitmap.Freeze();
-            return bitmap;
+            return ms.ToArray();
         }
         finally
         {
             scaled?.Dispose();
         }
+    }
+
+    /// <summary>PNG baytlarından WPF görüntüsü — UI iş parçacığında çağrılmalı.</summary>
+    public static BitmapSource FromPngBytes(byte[] pngBytes)
+    {
+        using var ms = new MemoryStream(pngBytes);
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.StreamSource = ms;
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
     }
 }

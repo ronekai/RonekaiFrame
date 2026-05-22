@@ -1,14 +1,14 @@
-using System.Windows.Media.Imaging;
 using RonekaiImageFramer.Models;
-using SixLabors.ImageSharp;
 using RonekaiImageFramer.Templates;
 using RonekaiImageFramer.Ui;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using ImgSize = SixLabors.ImageSharp.Size;
 
 namespace RonekaiImageFramer.Services;
 
 public sealed record LivePreviewResult(
-    BitmapSource? Image,
+    byte[]? PreviewPng,
     string SizeLabel,
     string Caption,
     bool Success,
@@ -21,46 +21,104 @@ public static class TemplatePreviewService
     public static LivePreviewResult Render(
         IProductTemplate template,
         BrandColorTheme theme,
+        ThemeColorSet themeColors,
         LogoOverlaySettings logoSettings,
         ImageBrandSettings imageBrand,
         ExportResolutionProfile exportProfile,
+        ProcessingJobSettings job,
+        string? sampleSourceFile = null,
         int? sampleSourceWidth = null,
         int? sampleSourceHeight = null)
     {
         try
         {
-            using var _ = BrandThemeContext.Use(theme);
+            using var _ = BrandThemeContext.Use(theme, themeColors);
             using var __ = ImageBrandContext.Use(imageBrand);
-            using var demo = DemoProductImage.Create();
-            using var templated = template.Apply(demo);
+            using var ___ = ProcessingFitContext.Use(job.ResponsiveProductFit);
 
-            using var withLogo = ApplyLogoIfNeeded(templated, logoSettings);
-            using var output = OutputScaler.Apply(
-                withLogo,
-                exportProfile,
-                sampleSourceWidth ?? demo.Width,
-                sampleSourceHeight ?? demo.Height,
-                template.OutputSize);
+            Image<Rgba32> sourceImage;
+            bool usedRealPhoto = false;
+            int srcW;
+            int srcH;
 
-            var bmp = WpfImageHelper.ToBitmapSource(output, MaxDisplayWidth);
+            if (!string.IsNullOrEmpty(sampleSourceFile) && File.Exists(sampleSourceFile))
+            {
+                sourceImage = SourceImageLoader.Load(sampleSourceFile);
+                usedRealPhoto = true;
+                srcW = sourceImage.Width;
+                srcH = sourceImage.Height;
+            }
+            else
+            {
+                sourceImage = DemoProductImage.Create();
+                srcW = sampleSourceWidth ?? sourceImage.Width;
+                srcH = sampleSourceHeight ?? sourceImage.Height;
+            }
 
-            string logoNote = logoSettings.UsesLogo ? " · logo önizleme" : "";
-            string brandNote = $"{imageBrand.MainText}{imageBrand.SuffixText}";
-            return new LivePreviewResult(
-                bmp,
-                OutputScaler.FormatTargetLabel(exportProfile, template.OutputSize, sampleSourceWidth, sampleSourceHeight),
-                $"Demo ürün · marka: {brandNote}{logoNote}",
-                true,
-                null);
+            try
+            {
+                bool skipFrame = job.ResizeOnly || template.IsPassthrough;
+                bool stretchToExport = template.StretchToExport && !job.ResizeOnly;
+                ImgSize templateSize = skipFrame ? new ImgSize(srcW, srcH) : template.OutputSize;
+
+                Image<Rgba32> pipeline;
+                if (skipFrame)
+                {
+                    LogoPlacementContext.Reset();
+                    pipeline = sourceImage.CloneAs<Rgba32>();
+                }
+                else
+                {
+                    LogoPlacementContext.Reset();
+                    using var templated = template.Apply(sourceImage);
+                    pipeline = templated.CloneAs<Rgba32>();
+                }
+
+                using (pipeline)
+                {
+                    using var withLogo = ApplyLogoIfNeeded(pipeline, logoSettings);
+                    using var withText = job.TextOverlay.HasText
+                        ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
+                        : withLogo.CloneAs<Rgba32>();
+
+                    using var output = OutputScaler.Apply(
+                        withText,
+                        exportProfile,
+                        srcW,
+                        srcH,
+                        templateSize,
+                        stretchToExport);
+
+                    var png = WpfImageHelper.EncodePng(output, MaxDisplayWidth);
+
+                    string logoNote = logoSettings.UsesLogo ? " · logo" : "";
+                    string textNote = job.TextOverlay.HasText ? " · metin" : "";
+                    string sourceNote = usedRealPhoto
+                        ? $"Gerçek fotoğraf: {Path.GetFileName(sampleSourceFile)}"
+                        : "Demo ürün görseli";
+                    string modNote = job.ResizeOnly ? " · sadece boyutlandır"
+                        : template.IsPassthrough && !template.StretchToExport ? " · şablon yok"
+                        : template.StretchToExport ? " · yay"
+                        : job.ResponsiveProductFit ? " · responsif"
+                        : "";
+
+                    return new LivePreviewResult(
+                        png,
+                        OutputScaler.FormatTargetLabel(exportProfile, templateSize, srcW, srcH, stretchToExport),
+                        $"{sourceNote} · {imageBrand.MainText}{imageBrand.SuffixText}{logoNote}{textNote}{modNote}",
+                        true,
+                        null);
+                }
+            }
+            finally
+            {
+                if (usedRealPhoto)
+                    sourceImage.Dispose();
+            }
         }
         catch (Exception ex)
         {
-            return new LivePreviewResult(
-                null,
-                "",
-                "Önizleme oluşturulamadı",
-                false,
-                ex.Message);
+            return new LivePreviewResult(null, "", "Önizleme oluşturulamadı", false, ex.Message);
         }
     }
 
@@ -75,8 +133,9 @@ public static class TemplatePreviewService
             using var logo = loaded.CloneImage();
             return LogoComposer.Apply(templated, logo, logoSettings);
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Logo önizleme: {ex.Message}");
             return templated.CloneAs<Rgba32>();
         }
     }

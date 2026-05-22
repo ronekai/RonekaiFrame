@@ -21,15 +21,20 @@ veya **`Calistir.bat`** / **`Derle.bat`** dosyalarına çift tıklayın.
 ## Özellikler (son sürüm)
 
 ### Görsel işleme
-- **12 şablon** (beyaz stüdyo, marka şeridi, Instagram kare, katalog geniş, koyu premium, filigran vb.)
-- **Renk paketleri** + özel zemin / RONEKAI / .DEN renk seçimi
-- **Görseldeki marka metni** özelleştirilebilir (ana metin + ek)
-- **7 logo modu** (filigran, arka plan, rozet, çerçeve…)
-- **Varsayılan logo** veya **Logo seç…** ile özel dosya
-- Logo formatı: **PNG** (şeffaflık), **JPEG**, Mac **HEIC/HEIF** → otomatik JPEG önbellek
+- **20+ şablon** (beyaz stüdyo, Pinterest, Story 9:16, Polaroid, Trendyol kare, lüks çerçeve, banner şerit vb.)
+- **17 renk paketi** + özel zemin / RONEKAI / .DEN (hex veya RGB)
+- **Kayıtlı profiller** — şablon, renk, logo, çıktı ve gelişmiş ayarları tek tıkla yükle
+- **Favori / son kullanılan şablonlar**
+- **Görseldeki marka metni** özelleştirilebilir (ana metin + ek, göster/gizle, boyut %)
+- **Responsif sığdır** — şablon alanını boşluk bırakmadan doldurma (isteğe bağlı)
+- **Ek metin katmanı** (fiyat, SKU, kampanya)
+- **7 logo modu** + varsayılan veya özel logo dosyası
+- **Sadece boyutlandır** modu (şablon olmadan ölçekleme)
+- **JPEG kalitesi** ayarı ve **PNG çıktı** seçeneği
+- **Özel dosya adı şablonu** (`{base}`, `{stamp}`, `{template}`, `{export}` …)
 
 ### Canlı önizleme
-- Üst panelde **DEMO önizleme** — işlem başlatmadan şablon + renk + logo sonucu
+- Kaynak klasördeki **ilk gerçek fotoğraf** ile canlı önizleme (yoksa demo)
 - Yanında **işlem günlüğü**
 
 ### Platform / çıktı boyutu
@@ -38,8 +43,10 @@ veya **`Calistir.bat`** / **`Derle.bat`** dosyalarına çift tıklayın.
 
 ### Kaynak ve çıktı
 - **JPG, PNG, WEBP, HEIC/HEIF** (alt klasörler dahil)
+- **Sürükle-bırak** klasör veya dosya; **dosya listesinden** yalnızca seçilenleri işleme
+- İşlem öncesi **örnek önizleme** (`_Onizleme_Ornekleri` alt klasörü)
 - Çıktı: kaynak klasör içinde `PhonixFrame_yyyy-MM-dd_HHmmss/`
-- Çıktı formatı: **JPEG** (yüksek kalite)
+- Çıktı: **JPEG** (ayarlanabilir kalite) veya **PNG**
 
 ### Arayüz
 - Üstte geniş **önizleme + günlük**, altta iki sütun **ayarlar**
@@ -66,6 +73,8 @@ Depo: https://github.com/ronekai/RonekaiFrame
 `GitHubTekSurum.bat` dosyasına çift tıklayın → onaylayın → `force push` ile tek commit kalır.
 
 Gereksinim: `gh auth login` (hesap: ronekai).
+
+**Dal:** Yalnızca **`main`** kullanın. Eski **`master`** zorunlu değildir; GitHub’da iki dal görünüyorsa `master`’ı silebilirsiniz (Settings → Default branch: **main**).
 
 Diğer betikler:
 - `GitHubYukle-Manuel.bat` — normal push (geçmişi korur)

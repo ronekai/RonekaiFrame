@@ -1,7 +1,5 @@
 using RonekaiImageFramer.Models;
 using RonekaiImageFramer.Templates;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace RonekaiImageFramer.Services;
@@ -13,6 +11,7 @@ public sealed record ProcessResult(
     int Failed,
     int HeifInBatch,
     string OutputFolder,
+    string? SamplePreviewFolder,
     IReadOnlyList<string> Log);
 
 public static class BatchProcessor
@@ -26,25 +25,21 @@ public static class BatchProcessor
     public static int CountHeifImages(IEnumerable<string> files) =>
         files.Count(ImageInputCatalog.IsHeifFile);
 
-    public static async Task<ProcessResult> ProcessFolderAsync(
-        string sourceFolder,
-        IProductTemplate template,
+    public static async Task<ProcessResult> ProcessFilesAsync(
+        IReadOnlyList<string> files,
         string outputFolder,
+        IProductTemplate? template,
         BrandColorTheme colorTheme,
-        LogoOverlaySettings? logoSettings = null,
-        ImageBrandSettings? imageBrand = null,
-        ExportResolutionProfile? exportProfile = null,
+        ThemeColorSet themeColors,
+        LogoOverlaySettings logoSettings,
+        ImageBrandSettings imageBrand,
+        ExportResolutionProfile exportProfile,
+        ProcessingJobSettings job,
         IProgress<ProcessProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        if (!Directory.Exists(sourceFolder))
-            throw new DirectoryNotFoundException($"Kaynak klasör bulunamadı: {sourceFolder}");
-
-        var files = FindImages(sourceFolder);
         if (files.Count == 0)
-            throw new InvalidOperationException(
-                $"Klasörde desteklenen resim bulunamadı ({ImageInputCatalog.SupportedFormatsDescription}).\n" +
-                "Alt klasörler de taranır; dosya uzantısının .heic / .jpg olduğundan emin olun.");
+            throw new InvalidOperationException("İşlenecek dosya yok.");
 
         Directory.CreateDirectory(outputFolder);
 
@@ -53,17 +48,97 @@ public static class BatchProcessor
         int heifInBatch = CountHeifImages(files);
         var log = new List<string>();
         string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        logoSettings ??= new LogoOverlaySettings();
-        imageBrand ??= ImageBrandStore.Current;
-        exportProfile ??= ExportResolutionRegistry.Default;
-        using var logoLoaded = logoSettings.UsesLogo
-            ? LogoProvider.LoadDetails(logoSettings.LogoFilePath)
-            : null;
-        using var logoImage = logoLoaded?.CloneImage();
+        string templateId = job.ResizeOnly ? "resize-only"
+            : template?.Id ?? "none";
+        string? sampleFolder = null;
 
-        log.Add($"Toplam {files.Count} dosya (alt klasörler dahil), {heifInBatch} HEIC/HEIF");
-        log.Add($"Çıktı boyutu: {exportProfile.Name} ({exportProfile.SizeHint})");
-        log.Add($"Görsel marka: {imageBrand.MainText}{imageBrand.SuffixText}");
+        log.Add($"İşlenecek: {files.Count} dosya, {heifInBatch} HEIC/HEIF");
+        log.Add($"Mod: {(job.ResizeOnly ? "Sadece boyutlandır"
+            : template?.StretchToExport == true ? $"Yay → {exportProfile.Name}"
+            : template?.IsPassthrough == true ? "Şablon yok"
+            : $"Şablon: {template?.Name}")}");
+        log.Add($"Çıktı: {exportProfile.Name} · {(job.SaveAsPng ? "PNG" : $"JPEG Q{job.JpegQuality}")}");
+
+        if (job.SamplePreviewCount > 0)
+        {
+            sampleFolder = Path.Combine(outputFolder, "_Onizleme_Ornekleri");
+            Directory.CreateDirectory(sampleFolder);
+            var samples = files.Take(Math.Min(job.SamplePreviewCount, files.Count)).ToList();
+            log.Add($"Örnek önizleme ({samples.Count} dosya): {sampleFolder}");
+            var sampleResult = await ProcessFileListAsync(
+                samples, sampleFolder, template, colorTheme, themeColors, logoSettings, imageBrand,
+                exportProfile, job, stamp, templateId, null, cancellationToken);
+            success += sampleResult.Success;
+            failed += sampleResult.Failed;
+            foreach (var line in sampleResult.Messages)
+                log.Add("  " + line);
+        }
+
+        var mainResult = await ProcessFileListAsync(
+            files, outputFolder, template, colorTheme, themeColors, logoSettings, imageBrand,
+            exportProfile, job, stamp, templateId, progress, cancellationToken);
+
+        success += mainResult.Success;
+        failed += mainResult.Failed;
+        log.AddRange(mainResult.Messages);
+
+        return new ProcessResult(success, failed, heifInBatch, outputFolder, sampleFolder, log);
+    }
+
+    public static Task<ProcessResult> ProcessFolderAsync(
+        string sourceFolder,
+        IProductTemplate? template,
+        string outputFolder,
+        BrandColorTheme colorTheme,
+        ThemeColorSet? themeColors = null,
+        LogoOverlaySettings? logoSettings = null,
+        ImageBrandSettings? imageBrand = null,
+        ExportResolutionProfile? exportProfile = null,
+        ProcessingJobSettings? job = null,
+        IReadOnlyList<string>? onlyFiles = null,
+        IProgress<ProcessProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(sourceFolder))
+            throw new DirectoryNotFoundException($"Kaynak klasör bulunamadı: {sourceFolder}");
+
+        var files = onlyFiles ?? FindImages(sourceFolder);
+        if (files.Count == 0)
+            throw new InvalidOperationException(
+                $"Klasörde desteklenen görsel yok ({ImageInputCatalog.SupportedFormatsDescription}).");
+
+        return ProcessFilesAsync(
+            files,
+            outputFolder,
+            template,
+            colorTheme,
+            themeColors ?? ThemeColorSet.FromTheme(colorTheme),
+            logoSettings ?? new LogoOverlaySettings(),
+            imageBrand ?? ImageBrandStore.Current,
+            exportProfile ?? ExportResolutionRegistry.Default,
+            job ?? ProcessingJobSettings.Default,
+            progress,
+            cancellationToken);
+    }
+
+    private static async Task<(int Success, int Failed, List<string> Messages)> ProcessFileListAsync(
+        IReadOnlyList<string> files,
+        string outputFolder,
+        IProductTemplate? template,
+        BrandColorTheme colorTheme,
+        ThemeColorSet themeColors,
+        LogoOverlaySettings logoSettings,
+        ImageBrandSettings imageBrand,
+        ExportResolutionProfile exportProfile,
+        ProcessingJobSettings job,
+        string stamp,
+        string templateId,
+        IProgress<ProcessProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        int success = 0;
+        int failed = 0;
+        var messages = new List<string>();
 
         for (int i = 0; i < files.Count; i++)
         {
@@ -76,50 +151,45 @@ public static class BatchProcessor
             {
                 await Task.Run(() =>
                 {
-                    using var _ = BrandThemeContext.Use(colorTheme);
-                    using var __ = ImageBrandContext.Use(imageBrand);
-                    using var input = SourceImageLoader.Load(file);
-
-                    using var templated = template.Apply(input);
-                    Image<Rgba32> pipeline = templated;
-                    Image<Rgba32>? logoApplied = null;
-
-                    if (logoImage != null)
-                    {
-                        logoApplied = LogoComposer.Apply(templated, logoImage, logoSettings);
-                        pipeline = logoApplied;
-                    }
-
-                    using var scaled = OutputScaler.Apply(
-                        pipeline,
-                        exportProfile,
-                        input.Width,
-                        input.Height,
-                        template.OutputSize);
-
                     string baseName = Path.GetFileNameWithoutExtension(file);
-                    string heifTag = isHeif ? "_heic" : "";
-                    string outName = $"{baseName}_{stamp}_{template.Id}_{colorTheme.Id}_{exportProfile.Id}_{logoSettings.ModeSuffix}{heifTag}.jpg";
+                    string outName = OutputFileNamer.BuildFileName(
+                        job.FileNamePattern,
+                        baseName,
+                        stamp,
+                        templateId,
+                        colorTheme.Id,
+                        exportProfile.Id,
+                        logoSettings.ModeSuffix,
+                        isHeif,
+                        job.SaveAsPng);
                     string outPath = Path.Combine(outputFolder, outName);
-                    scaled.SaveAsJpeg(outPath, new JpegEncoder { Quality = 92 });
 
-                    logoApplied?.Dispose();
-                }, cancellationToken).ConfigureAwait(false);
+                    ImagePipeline.ProcessAndSave(
+                        file,
+                        outPath,
+                        template,
+                        colorTheme,
+                        themeColors,
+                        logoSettings,
+                        imageBrand,
+                        exportProfile,
+                        job);
+                }, cancellationToken);
 
                 success++;
-                var okMsg = isHeif ? $"✓ {fileName} (HEIC → JPEG)" : $"✓ {fileName}";
-                log.Add(okMsg);
+                var okMsg = isHeif ? $"✓ {fileName} (HEIC)" : $"✓ {fileName}";
+                messages.Add(okMsg);
                 progress?.Report(new ProcessProgress(i + 1, files.Count, okMsg, false));
             }
             catch (Exception ex)
             {
                 failed++;
                 var errMsg = $"✗ {fileName}: {ex.Message}";
-                log.Add(errMsg);
+                messages.Add(errMsg);
                 progress?.Report(new ProcessProgress(i + 1, files.Count, errMsg, true));
             }
         }
 
-        return new ProcessResult(success, failed, heifInBatch, outputFolder, log);
+        return (success, failed, messages);
     }
 }

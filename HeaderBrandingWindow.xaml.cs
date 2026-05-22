@@ -73,11 +73,10 @@ public partial class HeaderBrandingWindow : Window
             ? null
             : HeaderLogoPathBox.Text.Trim();
 
-        var previewTitleRow = (Panel)PreviewTextPanel.Children[0]!;
         HeaderBrandingApplier.Apply(
             _working,
             PreviewLogo,
-            previewTitleRow,
+            PreviewTitleRow,
             PreviewMain,
             PreviewSuffix,
             PreviewTagline);
