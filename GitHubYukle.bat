@@ -1,19 +1,43 @@
 @echo off
+setlocal
 chcp 65001 >nul
 title PhonixFrame - GitHub Yukle
 cd /d "%~dp0"
 
-echo PowerShell betik politikasi icin Bypass kullaniliyor...
-echo (.ps1 dosyasini dogrudan calistirmayin — bu .bat dosyasini kullanin)
+echo.
+echo ========================================
+echo   PhonixFrame — GitHub Yukle
+echo   Depo: https://github.com/ronekai/RonekaiFrame
+echo ========================================
+echo.
+echo Commit mesaji: commit-msg.txt (varsa)
+echo Log: github-yukle-log.txt
 echo.
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0GitHubYukle.ps1"
-if %ERRORLEVEL% neq 0 (
-    echo.
-    echo PowerShell betigi basarisiz — Manuel bat deneniyor...
-    call "%~dp0GitHubYukle-Manuel.bat"
-    exit /b %ERRORLEVEL%
+where git >nul 2>&1
+if errorlevel 1 (
+    echo Git bulunamadi. Once GitKur.bat calistirin.
+    pause
+    exit /b 1
 )
 
-exit /b %ERRORLEVEL%
+where gh >nul 2>&1
+if errorlevel 1 (
+    echo GitHub CLI (gh) yok: winget install GitHub.cli
+    echo Sonra: gh auth login
+    pause
+    exit /b 1
+)
 
+choice /C EH /M "Push oncesi Derle.bat ile derleme yapilsin mi"
+if not errorlevel 2 (
+    call "%~dp0Derle.bat"
+    if errorlevel 1 (
+        echo Derleme basarisiz — push iptal.
+        pause
+        exit /b 1
+    )
+)
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0GitHubYukle.ps1"
+exit /b %ERRORLEVEL%

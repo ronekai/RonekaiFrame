@@ -64,8 +64,8 @@ public static class TemplatePreviewService
                 Image<Rgba32> pipeline;
                 if (skipFrame)
                 {
-                    LogoPlacementContext.Reset();
                     pipeline = sourceImage.CloneAs<Rgba32>();
+                    ImageBrandOverlay.ApplyToCanvas(pipeline);
                 }
                 else
                 {
@@ -96,11 +96,13 @@ public static class TemplatePreviewService
                     string sourceNote = usedRealPhoto
                         ? $"Gerçek fotoğraf: {Path.GetFileName(sampleSourceFile)}"
                         : "Demo ürün görseli";
+                    string brandNote = ImageBrandOverlay.ShouldApply ? " · marka" : "";
                     string modNote = job.ResizeOnly ? " · sadece boyutlandır"
                         : template.IsPassthrough && !template.StretchToExport ? " · şablon yok"
                         : template.StretchToExport ? " · yay"
                         : job.ResponsiveProductFit ? " · responsif"
                         : "";
+                    modNote += brandNote;
 
                     return new LivePreviewResult(
                         png,

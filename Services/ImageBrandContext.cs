@@ -30,6 +30,27 @@ public static class ImageBrandContext
 
     public static bool HasVisibleBrand => ShouldDrawMain || ShouldDrawSuffix;
 
+    public static bool ShowBrandLogo => Current.ShowBrandLogo;
+
+    public static string? BrandLogoPath => Current.BrandLogoPath;
+
+    public static float BrandLogoOpacity => Math.Clamp(Current.BrandLogoOpacity, 0.05f, 1f);
+
+    public static float BrandLogoSizeScale => Math.Clamp(Current.BrandLogoSizePercent, 25, 300) / 100f;
+
+    public static OverlayPlacement BrandLogoPlacement => Current.BrandLogoPlacement;
+
+    public static int BrandLogoOffsetX => Current.BrandLogoOffsetX;
+
+    public static int BrandLogoOffsetY => Current.BrandLogoOffsetY;
+
+    public static bool BrandLogoTintEnabled => Current.BrandLogoTintEnabled;
+
+    public static ThemeColorAppearance BrandLogoTint => Current.BrandLogoTint;
+
+    public static bool ShouldDrawBrandLogo =>
+        ShowBrandLogo && !string.IsNullOrWhiteSpace(BrandLogoPath) && File.Exists(BrandLogoPath!);
+
     public static string MainFontId =>
         string.IsNullOrWhiteSpace(Current.MainFontId) ? "segoe-ui" : Current.MainFontId.Trim();
 

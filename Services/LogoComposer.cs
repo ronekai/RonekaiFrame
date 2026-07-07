@@ -23,7 +23,7 @@ public static class LogoComposer
         switch (settings.Mode)
         {
             case LogoOverlayMode.Filigran:
-                DrawScaled(result, logoWork, opacity, scale: 0.62f, anchor: AnchorPositionMode.Center);
+                DrawFiligran(result, logoWork, opacity, settings.Placement, settings.ScalePercent);
                 break;
             case LogoOverlayMode.ArkaPlan:
                 ApplyBackground(result, logoWork, opacity, blur: true, whiteWash: 0.55f);
@@ -151,6 +151,43 @@ public static class LogoComposer
             ctx.Fill(ImgColor.FromRgba(255, 255, 255, 200), pad);
             ctx.DrawImage(badge, new ImgPoint(x, y), opacity);
         });
+    }
+
+    private static void DrawFiligran(
+        Image<Rgba32> canvas,
+        Image<Rgba32> logo,
+        float opacity,
+        OverlayPlacement placement,
+        int scalePercent)
+    {
+        float scale = Math.Clamp(scalePercent, 10, 100) / 100f;
+        int margin = Math.Max(16, (int)(canvas.Width * 0.03f));
+
+        if (placement == OverlayPlacement.Diagonal)
+        {
+            int target = Math.Max(48, (int)(Math.Max(canvas.Width, canvas.Height) * 0.5f * scale));
+            using var resized = logo.Clone(x => x.Resize(new ResizeOptions
+            {
+                Size = new ImgSize(target, target),
+                Mode = ResizeMode.Max,
+                Sampler = KnownResamplers.Lanczos3
+            }));
+            using var rotated = resized.Clone(x => x.Rotate(-32));
+            var point = OverlayPlacementHelper.GetTopLeft(OverlayPlacement.Center, canvas.Size, rotated.Size, 0);
+            canvas.Mutate(ctx => ctx.DrawImage(rotated, point, opacity));
+            return;
+        }
+
+        int w = Math.Max(32, (int)(canvas.Width * scale));
+        int h = Math.Max(32, (int)(canvas.Height * scale));
+        using var sized = logo.Clone(x => x.Resize(new ResizeOptions
+        {
+            Size = new ImgSize(w, h),
+            Mode = ResizeMode.Max,
+            Sampler = KnownResamplers.Lanczos3
+        }));
+        var pt = OverlayPlacementHelper.GetTopLeft(placement, canvas.Size, sized.Size, margin);
+        canvas.Mutate(ctx => ctx.DrawImage(sized, pt, opacity));
     }
 
     private static void DrawScaled(

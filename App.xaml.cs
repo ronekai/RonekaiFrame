@@ -24,6 +24,7 @@ public partial class App : System.Windows.Application
             base.OnStartup(e);
 
             HeaderBrandingStore.Load();
+            BrandLogoCatalog.EnsureBundledLogos();
 
             var login = new LoginWindow();
             if (login.ShowDialog() != true)

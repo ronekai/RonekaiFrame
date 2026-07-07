@@ -1,71 +1,33 @@
 @echo off
-
+setlocal
 chcp 65001 >nul
-
-title PhonixFrame - Kapat ve Yeniden Derle
-
+title PhonixFrame - Yeniden Derle
 cd /d "%~dp0"
 
+call _BuildCommon.bat Verify
+if errorlevel 1 goto fail
 
-
-call :ReleaseLocks
-
-
-
-echo.
-
-echo Derleniyor...
-
-dotnet build -c Debug
-
-set ERR=%ERRORLEVEL%
-
-
+call _BuildCommon.bat ReleaseLocks
 
 echo.
+echo === Yeniden derleme ===
+call _BuildCommon.bat Restore
+if errorlevel 1 goto fail
 
-if %ERR% neq 0 (
-
-    echo DERLEME BASARISIZ.
-
-    echo.
-
-    echo Cozum:
-
-    echo   1. Cursor/Visual Studio kapatin
-
-    echo   2. Gorev Yoneticisi: PhonixFrame ve dotnet sonlandir
-
-    echo   3. TamTemizlik.bat calistirin
-
-    pause
-
-    exit /b %ERR%
-
-)
-
-
+call _BuildCommon.bat Build
+if errorlevel 1 goto fail
 
 echo.
-
-echo BASARILI. Calistirmak icin: dotnet run  veya  Calistir.bat
-
+echo BASARILI.
+echo   Calistir.bat      — programi ac
+echo   GitHubYukle.bat   — GitHub'a yukle
 pause
-
 exit /b 0
 
-
-
-:ReleaseLocks
-
-echo Acik PhonixFrame ve derleme sunucusu kapatiliyor...
-
-taskkill /IM PhonixFrame.exe /F >nul 2>&1
-taskkill /IM RonekaiFrame.exe /F >nul 2>&1
-
-dotnet build-server shutdown >nul 2>&1
-
-timeout /t 2 >nul
-
-exit /b 0
-
+:fail
+echo.
+echo DERLEME BASARISIZ.
+call _BuildCommon.bat ShowLog
+echo Cozum: TamTemizlik.bat
+pause
+exit /b 1

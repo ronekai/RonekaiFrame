@@ -18,7 +18,7 @@ public static class LogoProvider
         if (!Directory.Exists(AssetsFolder))
             return list;
 
-        foreach (var ext in new[] { "*.png", "*.jpg", "*.jpeg", "*.webp", "*.heic", "*.heif" })
+        foreach (var ext in new[] { "*.png", "*.jpg", "*.jpeg", "*.svg", "*.webp", "*.heic", "*.heif" })
             list.AddRange(Directory.GetFiles(AssetsFolder, ext));
 
         return list.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(p => p).ToList();

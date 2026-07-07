@@ -12,6 +12,8 @@ public static class TemplateRegistry
         new BrandBarTopTemplate(),
         new MarketplaceSquareTemplate(),
         new InstagramSquareTemplate(),
+        new InstagramPostPortraitBlackTemplate(),
+        new InstagramPostPortraitWhiteTemplate(),
         new CatalogWideTemplate(),
         new DarkPremiumTemplate(),
         new MinimalFrameTemplate(),

@@ -6,6 +6,14 @@ public static class ColorFieldTags
     public const string Background = "Background";
     public const string MainText = "MainText";
     public const string Suffix = "Suffix";
+    public const string BrandLogoTint = "BrandLogoTint";
+    public const string BrandLogoTintEnd = "BrandLogoTintEnd";
+
+    public static bool IsBrandLogoTint(string? tag) =>
+        string.Equals(tag, BrandLogoTint, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsBrandLogoTintEnd(string? tag) =>
+        string.Equals(tag, BrandLogoTintEnd, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsMainText(string? tag) =>
         string.Equals(tag, MainText, StringComparison.OrdinalIgnoreCase)

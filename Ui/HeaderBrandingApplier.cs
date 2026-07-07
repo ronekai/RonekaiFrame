@@ -1,7 +1,6 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media.Imaging;
 using RonekaiImageFramer.Models;
 using RonekaiImageFramer.Services;
 
@@ -51,13 +50,9 @@ public static class HeaderBrandingApplier
 
         try
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.UriSource = new Uri(path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
-            logoImage.Source = bmp;
+            using var loaded = LogoProvider.LoadDetails(path);
+            using var pixels = loaded.CloneImage();
+            logoImage.Source = WpfImageHelper.ToBitmapSource(pixels, 256);
             logoImage.MaxHeight = 52;
             logoImage.Visibility = Visibility.Visible;
         }

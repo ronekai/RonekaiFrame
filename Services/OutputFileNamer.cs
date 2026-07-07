@@ -2,7 +2,7 @@ namespace RonekaiImageFramer.Services;
 
 public static class OutputFileNamer
 {
-    public const string DefaultPattern = "{base}_{stamp}_{template}_{export}";
+    public const string DefaultPattern = "{base}";
 
     public static string BuildFileName(
         string pattern,
@@ -12,11 +12,9 @@ public static class OutputFileNamer
         string colorId,
         string exportId,
         string logoSuffix,
-        bool isHeif,
         bool saveAsPng)
     {
         string ext = saveAsPng ? ".png" : ".jpg";
-        string heifTag = isHeif && !saveAsPng ? "_heic" : "";
 
         string name = (string.IsNullOrWhiteSpace(pattern) ? DefaultPattern : pattern)
             .Replace("{base}", Sanitize(baseName), StringComparison.OrdinalIgnoreCase)
@@ -28,7 +26,7 @@ public static class OutputFileNamer
             .Replace("{ext}", ext.TrimStart('.'), StringComparison.OrdinalIgnoreCase);
 
         if (!name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-            name += heifTag + ext;
+            name += ext;
 
         return SanitizeFileName(name);
     }

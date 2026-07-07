@@ -16,6 +16,8 @@ dotnet run
 
 veya **`Calistir.bat`** / **`Derle.bat`** dosyalarına çift tıklayın.
 
+Derleme hatası alırsanız sırayla deneyin: **`Derle.bat`** → **`TamTemizlik.bat`** → **`TemizleVeCalistir.bat`**. Ayrıntılar `build-output.txt` dosyasına yazılır.
+
 **Giriş şifresi:** uygulama içinde tanımlı (varsayılan kurulum).
 
 ## Özellikler (son sürüm)
@@ -31,18 +33,26 @@ veya **`Calistir.bat`** / **`Derle.bat`** dosyalarına çift tıklayın.
 - **7 logo modu** + varsayılan veya özel logo dosyası
 - **Sadece boyutlandır** modu (şablon olmadan ölçekleme)
 - **JPEG kalitesi** ayarı ve **PNG çıktı** seçeneği
-- **Özel dosya adı şablonu** (`{base}`, `{stamp}`, `{template}`, `{export}` …)
+- **Dosya adı** — varsayılan orijinal ad (`IMG_001.jpg`); tarih çıktı klasör adında
 
 ### Canlı önizleme
-- Kaynak klasördeki **ilk gerçek fotoğraf** ile canlı önizleme (yoksa demo)
+- Kaynak klasördeki **gerçek fotoğraf** ile canlı önizleme (yoksa demo)
+- **Dosya listesinden seçilen** görsel önizlemede gösterilir
 - Yanında **işlem günlüğü**
+
+### Logo ve marka
+- **Marka logosu** — konum, boyut, opaklık, X/Y ofset, renk/gradyan tint
+- **Filigran logosu** — 9 konum + ölçek %
+- **SVG logo** desteği (rasterize edilir)
 
 ### Platform / çıktı boyutu
 - Şablon boyutu, kaynak dosya boyutu
 - Instagram, WhatsApp, Sahibinden, Facebook, LinkedIn, Google Merchant, e-ticaret pro, web optimize, Amazon vb.
 
 ### Kaynak ve çıktı
-- **JPG, PNG, WEBP, HEIC/HEIF** (alt klasörler dahil)
+- **JPG, PNG, WEBP, HEIC/HEIF, .hdc** (alt klasörler dahil)
+- JPEG okuma: ImageSharp başarısız olursa **Windows WPF yedek kodlayıcı**
+- Bozuk veya bulut önizleme dosyaları için **açıklayıcı hata mesajları**
 - **Sürükle-bırak** klasör veya dosya; **dosya listesinden** yalnızca seçilenleri işleme
 - İşlem öncesi **örnek önizleme** (`_Onizleme_Ornekleri` alt klasörü)
 - Çıktı: kaynak klasör içinde `PhonixFrame_yyyy-MM-dd_HHmmss/`
@@ -58,34 +68,46 @@ veya **`Calistir.bat`** / **`Derle.bat`** dosyalarına çift tıklayın.
 Assets/ronekai-logo.png
 ```
 
-(veya `logo.png`, `ronekai-logo.jpg` — Assets klasöründe)
+(veya `logo.png`, `ronekai-logo.jpg`, `*.svg` — Assets klasöründe; SVG vektör olarak rasterize edilir)
 
 ## Mac / iPhone HEIC
 
 HEIC okumak için Windows'ta [HEIF Image Extensions](https://apps.microsoft.com/detail/9n4wgh0z6vhq) (ücretsiz) gerekebilir.
 
-## GitHub'a yükleme (tek sürüm)
+## Betikler (.bat)
+
+| Dosya | Açıklama |
+|--------|----------|
+| `Calistir.bat` | Derle ve programı aç |
+| `Derle.bat` | Sadece derle |
+| `TamTemizlik.bat` | bin/obj sil + derle |
+| `TemizleVeCalistir.bat` | Tam temizlik + çalıştır |
+| `YenidenDerle.bat` | Hızlı yeniden derleme |
+| `GitHubYukle.bat` | GitHub'a commit + push |
+| `GitKur.bat` | Git / gh kurulum yardımcısı |
+
+Ortak derleme: `_BuildCommon.bat` (doğrudan çalıştırmayın).
+
+Commit mesajı: `commit-msg.txt` · Derleme logu: `build-output.txt` · GitHub logu: `github-yukle-log.txt`
+
+## GitHub'a yükleme
 
 Depo: https://github.com/ronekai/RonekaiFrame
 
-**Eski GitHub geçmişini silip yalnızca güncel PhonixFrame kodunu bırakmak için:**
+1. `gh auth login` (bir kez; Git yoksa `GitKur.bat`)
 
-`GitHubTekSurum.bat` dosyasına çift tıklayın → onaylayın → `force push` ile tek commit kalır.
+2. `commit-msg.txt` güncelleyin (isteğe bağlı)
 
-Gereksinim: `gh auth login` (hesap: ronekai).
+3. **`GitHubYukle.bat`** — isteğe bağlı derleme, sonra push
 
-**Dal:** Yalnızca **`main`** kullanın. Eski **`master`** zorunlu değildir; GitHub’da iki dal görünüyorsa `master`’ı silebilirsiniz (Settings → Default branch: **main**).
-
-Diğer betikler:
-- `GitHubYukle-Manuel.bat` — normal push (geçmişi korur)
-- `GitHubYukle.bat` — PowerShell betiği (Bypass ile)
+**Dal:** `main` (varsayılan)
 
 ## Proje yapısı
 
 | Klasör | Açıklama |
 |--------|----------|
 | `Templates/` | Görsel şablonları |
-| `Services/` | Toplu işlem, önizleme, logo, HEIC |
+| `Services/` | Toplu işlem, önizleme, logo, HEIC, WPF yedek JPEG okuyucu |
 | `Controls/` | Başlık markası bileşenleri |
 | `Assets/` | Varsayılan logo |
 

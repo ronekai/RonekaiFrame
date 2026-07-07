@@ -10,6 +10,9 @@ namespace RonekaiImageFramer;
 public partial class HeaderBrandingWindow : Window
 {
     private readonly HeaderBrandingSettings _working;
+    private static string AssetsFolder => LogoProvider.AssetsFolder;
+    private static string HorizontalBlackPath => System.IO.Path.Combine(AssetsFolder, "nadir-figur-yatay-siyah.svg");
+    private static string HorizontalWhitePath => System.IO.Path.Combine(AssetsFolder, "nadir-figur-yatay-beyaz.svg");
 
     public HeaderBrandingSettings? ResultSettings { get; private set; }
 
@@ -50,7 +53,7 @@ public partial class HeaderBrandingWindow : Window
         var dialog = new OpenFileDialog
         {
             Title = "Üst başlık logosu",
-            Filter = "Görsel|*.png;*.jpg;*.jpeg;*.webp;*.bmp|Tüm dosyalar|*.*",
+            Filter = LogoImageLoader.HeaderLogoDialogFilter,
             InitialDirectory = LogoProvider.AssetsFolder
         };
 
@@ -59,6 +62,18 @@ public partial class HeaderBrandingWindow : Window
             HeaderLogoPathBox.Text = dialog.FileName;
             RefreshPreview();
         }
+    }
+
+    private void HeaderLogoHorizontalBlack_Click(object sender, RoutedEventArgs e)
+    {
+        HeaderLogoPathBox.Text = HorizontalBlackPath;
+        RefreshPreview();
+    }
+
+    private void HeaderLogoHorizontalWhite_Click(object sender, RoutedEventArgs e)
+    {
+        HeaderLogoPathBox.Text = HorizontalWhitePath;
+        RefreshPreview();
     }
 
     private void RefreshPreview()

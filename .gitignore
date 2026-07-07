@@ -4,6 +4,7 @@ Cikti/
 *.user
 build-log.txt
 build-output.txt
+publish-result.log
 github-yukle-log.txt
 github-push-result.txt
 _push-log.txt
@@ -12,6 +13,7 @@ git-status-out.txt
 commit-msg.txt
 header-branding.json
 image-brand.json
+source-folder-logos.json
 logo-path-settings.json
 processing-presets.json
 template-favorites.json

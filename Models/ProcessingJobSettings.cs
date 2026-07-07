@@ -11,7 +11,7 @@ public sealed class ProcessingJobSettings
     public bool ResponsiveProductFit { get; init; }
     public int JpegQuality { get; init; } = 92;
     public bool SaveAsPng { get; init; }
-    public string FileNamePattern { get; init; } = "{base}_{stamp}_{template}_{export}";
+    public string FileNamePattern { get; init; } = "{base}";
     public TextOverlaySettings TextOverlay { get; init; } = new();
     public int SamplePreviewCount { get; init; }
     public bool ProcessOnlySelectedFiles { get; init; }

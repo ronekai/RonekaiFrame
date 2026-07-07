@@ -9,28 +9,81 @@ public static class AppPaths
     public static string BuildOutputFolderName(DateTime? at = null) =>
         $"PhonixFrame_{(at ?? DateTime.Now):yyyy-MM-dd_HHmmss}";
 
-    /// <summary>Seçili kaynak klasörün içinde yeni çıktı klasörü oluşturur.</summary>
-    public static string CreateOutputFolder(string sourceDirectory)
+    /// <summary>
+    /// Ana kaynak klasörün içinde tarih damgalı çıktı klasörü oluşturur.
+    /// İşlenen kaynak klasör adıyla bir alt klasör açılır (ör. PhonixFrame_…/funko_illidan).
+    /// </summary>
+    public static string CreateOutputFolder(
+        string rootSourceDirectory,
+        string? activeSourceDirectory = null,
+        bool nestSourceFolder = true)
     {
-        if (string.IsNullOrWhiteSpace(sourceDirectory))
-            throw new ArgumentException("Kaynak klasör belirtilmedi.", nameof(sourceDirectory));
+        if (string.IsNullOrWhiteSpace(rootSourceDirectory))
+            throw new ArgumentException("Kaynak klasör belirtilmedi.", nameof(rootSourceDirectory));
 
-        if (!Directory.Exists(sourceDirectory))
-            throw new DirectoryNotFoundException($"Kaynak klasör bulunamadı: {sourceDirectory}");
+        if (!Directory.Exists(rootSourceDirectory))
+            throw new DirectoryNotFoundException($"Kaynak klasör bulunamadı: {rootSourceDirectory}");
 
-        var path = Path.Combine(sourceDirectory, BuildOutputFolderName());
+        var outputRoot = Path.Combine(rootSourceDirectory, BuildOutputFolderName());
+        if (!nestSourceFolder)
+        {
+            Directory.CreateDirectory(outputRoot);
+            return outputRoot;
+        }
+
+        var path = ResolveOutputPath(outputRoot, rootSourceDirectory, activeSourceDirectory ?? rootSourceDirectory);
         Directory.CreateDirectory(path);
         return path;
     }
 
     /// <summary>Önizleme metni (klasör henüz oluşturulmadan).</summary>
-    public static string PreviewOutputPath(string? sourceDirectory)
+    public static string PreviewOutputPath(string? rootSourceDirectory, string? activeSourceDirectory = null)
     {
         var folderName = BuildOutputFolderName();
-        if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
-            return $"(kaynak klasör)\\{folderName}";
+        if (string.IsNullOrWhiteSpace(rootSourceDirectory) || !Directory.Exists(rootSourceDirectory))
+            return $"(kaynak klasör)\\{folderName}\\(kaynak adı)";
 
-        return Path.Combine(sourceDirectory, folderName);
+        var outputRoot = Path.Combine(rootSourceDirectory, folderName);
+        return ResolveOutputPath(outputRoot, rootSourceDirectory, activeSourceDirectory ?? rootSourceDirectory);
+    }
+
+    /// <summary>Toplu işlemde tarih damgalı çıktı kökü altındaki alt klasör adını döndürür.</summary>
+    public static string ResolveRelativeOutputPath(string rootSourceDirectory, string sourceDirectory) =>
+        ResolveSourceFolderLabel(rootSourceDirectory, sourceDirectory);
+
+    private static string ResolveOutputPath(
+        string outputRoot,
+        string rootSourceDirectory,
+        string activeSourceDirectory) =>
+        Path.Combine(outputRoot, ResolveSourceFolderLabel(rootSourceDirectory, activeSourceDirectory));
+
+    private static string ResolveSourceFolderLabel(string rootSourceDirectory, string activeSourceDirectory)
+    {
+        var relative = GetRelativeSubfolderPath(rootSourceDirectory, activeSourceDirectory);
+        if (!string.IsNullOrEmpty(relative))
+            return relative;
+
+        var folderName = Path.GetFileName(
+            Path.GetFullPath(activeSourceDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return string.IsNullOrWhiteSpace(folderName) ? "output" : folderName;
+    }
+
+    private static string? GetRelativeSubfolderPath(string rootSourceDirectory, string activeSourceDirectory)
+    {
+        var root = Path.GetFullPath(rootSourceDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var active = Path.GetFullPath(activeSourceDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (string.Equals(root, active, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var relative = Path.GetRelativePath(root, active);
+        if (relative.StartsWith("..", StringComparison.Ordinal))
+            return null;
+
+        return relative;
     }
 
     private static string ResolveProgramRoot()

@@ -5,7 +5,9 @@ RONEKAI.DEN logosunu bu klasöre koyun.
 
 Alternatif adlar da kabul edilir:
   ronekai-logo.jpg
+  ronekai-logo.svg
   logo.png
+  logo.svg
 
 Sohbette gönderdiğiniz logoyu kaydedip bu klasöre "ronekai-logo.png" adıyla kopyalayın.
 Program otomatik olarak bu dosyayı kullanır.

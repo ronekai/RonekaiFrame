@@ -5,6 +5,9 @@ public sealed record LogoOverlaySettings
     public LogoOverlayMode Mode { get; init; } = LogoOverlayMode.None;
     public float Opacity { get; init; } = 0.35f;
     public string? LogoFilePath { get; init; }
+    public OverlayPlacement Placement { get; init; } = OverlayPlacement.Center;
+    /// <summary>Filigran boyutu — 100 ≈ görsel genişliğinin %62'si.</summary>
+    public int ScalePercent { get; init; } = 62;
 
     public bool UsesLogo => Mode != LogoOverlayMode.None;
 

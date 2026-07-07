@@ -31,6 +31,7 @@ public abstract class TemplateBase : IProductTemplate
         var canvas = Render(clone);
         if (BrandTextPlacement == TemplateBrandPlacement.Corner)
             DrawCornerBrand(canvas);
+        ImageBrandOverlay.ApplyBrandLogo(canvas);
         return canvas;
     }
 

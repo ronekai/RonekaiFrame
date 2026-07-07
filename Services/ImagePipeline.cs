@@ -34,9 +34,9 @@ public static class ImagePipeline
 
         if (skipFrame)
         {
-            LogoPlacementContext.Reset();
             pipeline = input.CloneAs<Rgba32>();
             templateSize = new ImgSize(input.Width, input.Height);
+            ImageBrandOverlay.ApplyToCanvas(pipeline);
         }
         else
         {

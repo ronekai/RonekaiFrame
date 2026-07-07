@@ -1,5 +1,3 @@
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
@@ -17,33 +15,7 @@ public static class HeifDecoder
     {
         try
         {
-            using var stream = File.OpenRead(filePath);
-            var decoder = BitmapDecoder.Create(
-                stream,
-                BitmapCreateOptions.PreservePixelFormat,
-                BitmapCacheOption.OnLoad);
-
-            if (decoder.Frames.Count == 0)
-                throw new InvalidOperationException("Dosyada görüntü karesi yok.");
-
-            var frame = decoder.Frames[0];
-            var converted = new FormatConvertedBitmap();
-            converted.BeginInit();
-            converted.Source = frame;
-            converted.DestinationFormat = PixelFormats.Bgra32;
-            converted.EndInit();
-            converted.Freeze();
-
-            int width = converted.PixelWidth;
-            int height = converted.PixelHeight;
-            int stride = width * 4;
-            var pixels = new byte[height * stride];
-            converted.CopyPixels(pixels, stride, 0);
-
-            for (int i = 0; i < pixels.Length; i += 4)
-                (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
-
-            return Image.LoadPixelData<Rgba32>(pixels, width, height);
+            return WpfBitmapDecoder.Load(filePath);
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
         {

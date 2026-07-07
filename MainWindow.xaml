@@ -412,7 +412,7 @@
                             </Border>
 
                             <TextBlock Text="Görseldeki marka" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock Text="Önizleme ve çıktıdaki metin"
+                            <TextBlock Text="Önizleme ve çıktıdaki metin / logo"
                                        FontSize="11" Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,6"/>
                             <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
@@ -460,7 +460,7 @@
                             </Grid>
 
                             <CheckBox x:Name="ShowImageBrandMainCheck" Content="Ana metni göster"
-                                      Margin="0,8,0,4" IsChecked="True"
+                                      Margin="0,8,0,4"
                                       Checked="ImageBrandVisibility_Changed" Unchecked="ImageBrandVisibility_Changed"/>
                             <TextBlock Text="Ana metin boyutu" FontSize="10"
                                        Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,2"/>
@@ -478,7 +478,7 @@
                             </Grid>
 
                             <CheckBox x:Name="ShowImageBrandSuffixCheck" Content="Ek / son metni göster"
-                                      Margin="0,0,0,4" IsChecked="True"
+                                      Margin="0,0,0,4"
                                       Checked="ImageBrandVisibility_Changed" Unchecked="ImageBrandVisibility_Changed"/>
                             <TextBlock Text="Ek metin boyutu" FontSize="10"
                                        Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,2"/>
@@ -494,6 +494,7 @@
                                            VerticalAlignment="Center" FontSize="11"
                                            Foreground="{StaticResource BrandMutedBrush}"/>
                             </Grid>
+
                         </StackPanel>
                     </ScrollViewer>
 
@@ -529,7 +530,7 @@
                             <TextBlock x:Name="LogoFormatLabel" FontSize="11"
                                        Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,10"/>
 
-                            <Grid Margin="0,0,0,14">
+                            <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
@@ -538,11 +539,33 @@
                                 <TextBlock Text="Yoğunluk" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
                                 <Slider x:Name="LogoOpacitySlider" Grid.Column="1"
                                         Minimum="5" Maximum="100" Value="35"
-                                        Margin="8,0" VerticalAlignment="Center" IsEnabled="False"/>
+                                        Margin="8,0" VerticalAlignment="Center" IsEnabled="False"
+                                        ValueChanged="LogoOverlayOption_Changed"/>
                                 <TextBlock x:Name="LogoOpacityLabel" Grid.Column="2" Text="35%"
                                            VerticalAlignment="Center" FontSize="12"
                                            Foreground="{StaticResource BrandMutedBrush}"/>
                             </Grid>
+
+                            <StackPanel x:Name="FiligranOptionsPanel" Visibility="Collapsed" Margin="0,0,0,10">
+                                <TextBlock Text="Filigran konumu" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox x:Name="LogoPlacementCombo" Height="28" Margin="0,0,0,6"
+                                          DisplayMemberPath="Name"
+                                          SelectionChanged="LogoOverlayOption_Changed"/>
+                                <TextBlock Text="Filigran boyutu" FontSize="10"
+                                           Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,2"/>
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="40"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="LogoScaleSlider" Minimum="20" Maximum="90" Value="62"
+                                            VerticalAlignment="Center"
+                                            ValueChanged="LogoOverlayOption_Changed"/>
+                                    <TextBlock x:Name="LogoScaleLabel" Grid.Column="1" Text="62%"
+                                               VerticalAlignment="Center" FontSize="11"
+                                               Foreground="{StaticResource BrandMutedBrush}"/>
+                                </Grid>
+                            </StackPanel>
 
                             <TextBlock Text="Kaynak klasör" Style="{StaticResource SectionTitle}"/>
                             <TextBlock Text="JPG, PNG, WEBP, HEIC — sürükle-bırak veya Gözat"
@@ -564,6 +587,11 @@
                                 </Grid>
                             </Border>
 
+                            <TextBlock Text="Alt klasör" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="SourceSubfolderCombo" Height="28" Margin="0,0,0,10"
+                                      DisplayMemberPath="Label"
+                                      SelectionChanged="SourceSubfolderCombo_SelectionChanged"/>
+
                             <Grid Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -579,13 +607,173 @@
                                         Style="{StaticResource SecondaryButton}" Padding="8,3"
                                         Click="SelectAllFiles_Click"/>
                             </Grid>
-                            <CheckBox x:Name="ProcessSelectedOnlyCheck" Content="Yalnızca listede seçili dosyaları işle"
-                                      Margin="0,0,0,4" Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
+                            <CheckBox x:Name="ProcessSelectedOnlyCheck"
+                                      Content="Seçili dosyaları işle (kapalıyken klasörün tamamı)"
+                                      Margin="0,0,0,2"
+                                      Checked="ProcessSelectedOnlyCheck_Changed" Unchecked="ProcessSelectedOnlyCheck_Changed"/>
+                            <TextBlock x:Name="ProcessSelectionHint" TextWrapping="Wrap" FontSize="10"
+                                       Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,4"/>
                             <Border Background="#F8F9FB" CornerRadius="6" BorderBrush="#E2E6ED" BorderThickness="1"
                                     MaxHeight="120" Margin="0,0,0,12">
                                 <ListBox x:Name="SourceFileList" BorderThickness="0" Background="Transparent"
                                          FontSize="11" SelectionMode="Extended"
+                                         SelectionChanged="SourceFileList_SelectionChanged"
                                          ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                            </Border>
+
+                            <Border x:Name="BrandLogoPanel" Background="#F8F9FB" CornerRadius="8"
+                                    Padding="10,8" BorderBrush="#D8DEE8" BorderThickness="1" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Marka logosu" FontWeight="SemiBold" FontSize="12"
+                                               Foreground="{StaticResource BrandPrimaryBrush}" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="BrandLogoScopeHint" TextWrapping="Wrap" FontSize="10"
+                                               Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,8"/>
+                                    <CheckBox x:Name="ShowBrandLogoCheck" Content="Marka logosunu göster"
+                                              Margin="0,0,0,6"
+                                              Checked="BrandLogoUi_Changed" Unchecked="BrandLogoUi_Changed"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Button Content="Beyaz (filigram-08)"
+                                                Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,6,0"
+                                                Click="BrandLogoWhitePreset_Click"/>
+                                        <Button Content="Siyah (filigram-09)"
+                                                Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,6,0"
+                                                Click="BrandLogoBlackPreset_Click"/>
+                                        <Button Content="Yatay beyaz"
+                                                Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,6,0"
+                                                Click="BrandLogoHorizontalWhitePreset_Click"/>
+                                        <Button Content="Yatay siyah"
+                                                Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,6,0"
+                                                Click="BrandLogoHorizontalBlackPreset_Click"/>
+                                        <Button x:Name="BrowseBrandLogoButton" Content="Logo seç…"
+                                                Style="{StaticResource SecondaryButton}" Padding="8,4"
+                                                Click="BrowseBrandLogo_Click"/>
+                                    </StackPanel>
+                                    <TextBox x:Name="BrandLogoPathBox" Height="26" IsReadOnly="True"
+                                             VerticalContentAlignment="Center" Padding="6,0" Margin="0,0,0,6"
+                                             FontSize="10"/>
+                                    <TextBlock x:Name="BrandLogoSelectedHint" TextWrapping="Wrap" FontSize="10"
+                                               Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Konum" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox x:Name="BrandLogoPlacementCombo" Height="28" Margin="0,0,0,6"
+                                              DisplayMemberPath="Name"
+                                              SelectionChanged="BrandLogoUi_Changed"/>
+                                    <TextBlock Text="Konum ince ayarı" FontSize="10"
+                                               Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,2"/>
+                                    <Grid Margin="0,0,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="X" VerticalAlignment="Center" FontSize="11"/>
+                                        <Slider x:Name="BrandLogoOffsetXSlider" Grid.Column="1" Minimum="-150" Maximum="150" Value="0"/>
+                                        <TextBlock x:Name="BrandLogoOffsetXLabel" Grid.Column="2" Text="0"
+                                                   VerticalAlignment="Center" FontSize="11"
+                                                   Foreground="{StaticResource BrandMutedBrush}"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Y" VerticalAlignment="Center" FontSize="11"/>
+                                        <Slider x:Name="BrandLogoOffsetYSlider" Grid.Column="1" Minimum="-150" Maximum="150" Value="0"/>
+                                        <TextBlock x:Name="BrandLogoOffsetYLabel" Grid.Column="2" Text="0"
+                                                   VerticalAlignment="Center" FontSize="11"
+                                                   Foreground="{StaticResource BrandMutedBrush}"/>
+                                    </Grid>
+                                    <TextBlock Text="Logo boyutu" FontSize="10"
+                                               Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,2"/>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="BrandLogoSizeSlider" Minimum="25" Maximum="200" Value="100"/>
+                                        <TextBlock x:Name="BrandLogoSizeLabel" Grid.Column="1" Text="100%"
+                                                   VerticalAlignment="Center" FontSize="11"
+                                                   Foreground="{StaticResource BrandMutedBrush}"/>
+                                    </Grid>
+                                    <TextBlock Text="Şeffaflık" FontSize="10"
+                                               Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,2"/>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="BrandLogoOpacitySlider" Minimum="5" Maximum="100" Value="100"/>
+                                        <TextBlock x:Name="BrandLogoOpacityLabel" Grid.Column="1" Text="100%"
+                                                   VerticalAlignment="Center" FontSize="11"
+                                                   Foreground="{StaticResource BrandMutedBrush}"/>
+                                    </Grid>
+                                    <CheckBox x:Name="BrandLogoTintEnabledCheck" Content="Renk filtresi uygula"
+                                              Margin="0,0,0,6"
+                                              Checked="BrandLogoUi_Changed" Unchecked="BrandLogoUi_Changed"/>
+                                    <StackPanel x:Name="BrandLogoTintPanel" Margin="0,0,0,8">
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="32"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border x:Name="BrandLogoTintPreview" Height="28" Width="32"
+                                                    CornerRadius="4" BorderBrush="#D0D5DE" BorderThickness="1" Cursor="Hand"
+                                                    MouseLeftButtonUp="PickBrandLogoTint_Click"/>
+                                            <TextBox x:Name="BrandLogoTintHexBox" Grid.Column="1" Height="28"
+                                                     FontFamily="Consolas" FontSize="11" Margin="6,0,6,0"
+                                                     VerticalContentAlignment="Center" Padding="6,0"
+                                                     Tag="BrandLogoTint" KeyDown="BrandLogoTintHexBox_KeyDown"
+                                                     LostFocus="BrandLogoTintHexBox_LostFocus"/>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                <Button Content="Damla" Style="{StaticResource SecondaryButton}"
+                                                        Padding="8,5" MinWidth="44" Margin="0,0,4,0"
+                                                        Tag="BrandLogoTint" ToolTip="Önizlemeden renk al"
+                                                        Click="EyedropColor_Click"/>
+                                                <Button Content="Seç…" Style="{StaticResource SecondaryButton}"
+                                                        Padding="8,5" MinWidth="48" Click="PickBrandLogoTint_Click"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Dolgu" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                            <ComboBox x:Name="BrandLogoTintFillModeCombo" Grid.Column="1" Height="26" Margin="4,0,4,0"
+                                                      SelectionChanged="BrandLogoTintAppearance_Changed"/>
+                                            <TextBlock Grid.Column="2" Text="Yoğunluk" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="40"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="BrandLogoTintOpacitySlider" Minimum="5" Maximum="100" Value="100"/>
+                                            <TextBlock x:Name="BrandLogoTintOpacityLabel" Grid.Column="1" Text="100%"
+                                                       VerticalAlignment="Center" FontSize="11"
+                                                       Foreground="{StaticResource BrandMutedBrush}"/>
+                                        </Grid>
+                                        <Grid x:Name="BrandLogoTintGradientPanel" Visibility="Collapsed">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Gradyan son" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                            <TextBox x:Name="BrandLogoTintGradientEndHexBox" Grid.Column="1" Height="26"
+                                                     FontFamily="Consolas" FontSize="11" Margin="4,0,4,0"
+                                                     Tag="BrandLogoTintEnd" KeyDown="BrandLogoTintHexBox_KeyDown"
+                                                     LostFocus="BrandLogoTintHexBox_LostFocus"/>
+                                            <ComboBox x:Name="BrandLogoTintGradientDirectionCombo" Grid.Column="2" Width="88" Height="26"
+                                                      SelectionChanged="BrandLogoTintAppearance_Changed"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <Button x:Name="ApplyBrandLogoToAllButton" Content="Bu ayarı tüm dosyalara uygula"
+                                            Style="{StaticResource SecondaryButton}" Padding="8,5"
+                                            Click="ApplyBrandLogoToAll_Click"/>
+                                </StackPanel>
                             </Border>
 
                             <Expander Header="Gelişmiş ayarlar" IsExpanded="False" Margin="0,0,0,12">
@@ -609,7 +797,7 @@
                                     <CheckBox x:Name="SaveAsPngCheck" Content="PNG olarak kaydet (JPEG yerine)"
                                               Margin="0,0,0,8" Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
 
-                                    <TextBlock Text="Dosya adı şablonu" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="Dosya adı şablonu (varsayılan: orijinal ad)" Style="{StaticResource FieldLabel}"/>
                                     <TextBox x:Name="OutputFileNameBox" Height="28" Margin="0,0,0,4"
                                              VerticalContentAlignment="Center" Padding="6,0"
                                              LostFocus="AdvancedOption_Changed"/>
@@ -677,6 +865,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="Çıktılar seçili kaynak klasörün içine kaydedilir"
                            VerticalAlignment="Center" FontSize="11"
@@ -687,9 +876,12 @@
                 <Button Grid.Column="2" Content="İptal" Margin="0,0,8,0"
                         Style="{StaticResource SecondaryButton}" Padding="14,8"
                         Click="Cancel_Click" x:Name="CancelButton" IsEnabled="False"/>
-                <Button Grid.Column="3" Content="Resimleri İşle"
+                <Button Grid.Column="3" Content="Bu klasörü işle"
                         Style="{StaticResource PrimaryButton}" Padding="20,10"
                         Click="Process_Click" x:Name="ProcessButton" MinWidth="160"/>
+                <Button Grid.Column="4" Content="Tüm alt klasörleri işle"
+                        Style="{StaticResource PrimaryButton}" Padding="20,10"
+                        Click="ProcessAllFolders_Click" x:Name="ProcessAllFoldersButton" MinWidth="190"/>
             </Grid>
         </Grid>
     </Grid>

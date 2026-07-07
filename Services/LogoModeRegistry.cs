@@ -8,8 +8,8 @@ public static class LogoModeRegistry
     [
         new(LogoOverlayMode.None, "Logo yok",
             "Sadece seçilen şablon uygulanır."),
-        new(LogoOverlayMode.Filigran, "Filigran (ortada şeffaf)",
-            "Logonuz görselin ortasında yarı şeffaf filigran olarak görünür."),
+        new(LogoOverlayMode.Filigran, "Filigran (şeffaf logo)",
+            "Logoyu seçtiğiniz konumda yarı şeffaf filigran olarak yerleştirir (orta, köşeler, çapraz)."),
         new(LogoOverlayMode.ArkaPlan, "Arka plan (soluk, bulanık)",
             "Logo ürünün arkasında soluk ve hafif bulanık zemin olur."),
         new(LogoOverlayMode.TamArkaPlan, "Tam arka plan",

@@ -17,13 +17,13 @@ public sealed record ProcessResult(
 public static class BatchProcessor
 {
     public static IReadOnlyList<string> FindImages(string sourceFolder) =>
-        Directory.EnumerateFiles(sourceFolder, "*.*", SearchOption.AllDirectories)
+        Directory.EnumerateFiles(sourceFolder, "*.*", SearchOption.TopDirectoryOnly)
             .Where(f => ImageInputCatalog.IsSupportedExtension(Path.GetExtension(f)))
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
     public static int CountHeifImages(IEnumerable<string> files) =>
-        files.Count(ImageInputCatalog.IsHeifFile);
+        files.Count(ImageInputCatalog.IsHeifOrAliasFile);
 
     public static async Task<ProcessResult> ProcessFilesAsync(
         IReadOnlyList<string> files,
@@ -35,6 +35,7 @@ public static class BatchProcessor
         ImageBrandSettings imageBrand,
         ExportResolutionProfile exportProfile,
         ProcessingJobSettings job,
+        SourceFolderLogoSettings? folderLogoSettings = null,
         IProgress<ProcessProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -67,7 +68,7 @@ public static class BatchProcessor
             log.Add($"Örnek önizleme ({samples.Count} dosya): {sampleFolder}");
             var sampleResult = await ProcessFileListAsync(
                 samples, sampleFolder, template, colorTheme, themeColors, logoSettings, imageBrand,
-                exportProfile, job, stamp, templateId, null, cancellationToken);
+                exportProfile, job, stamp, templateId, folderLogoSettings, null, cancellationToken);
             success += sampleResult.Success;
             failed += sampleResult.Failed;
             foreach (var line in sampleResult.Messages)
@@ -76,7 +77,7 @@ public static class BatchProcessor
 
         var mainResult = await ProcessFileListAsync(
             files, outputFolder, template, colorTheme, themeColors, logoSettings, imageBrand,
-            exportProfile, job, stamp, templateId, progress, cancellationToken);
+            exportProfile, job, stamp, templateId, folderLogoSettings, progress, cancellationToken);
 
         success += mainResult.Success;
         failed += mainResult.Failed;
@@ -117,6 +118,7 @@ public static class BatchProcessor
             imageBrand ?? ImageBrandStore.Current,
             exportProfile ?? ExportResolutionRegistry.Default,
             job ?? ProcessingJobSettings.Default,
+            SourceFolderLogoStore.GetForFolder(sourceFolder),
             progress,
             cancellationToken);
     }
@@ -133,6 +135,7 @@ public static class BatchProcessor
         ProcessingJobSettings job,
         string stamp,
         string templateId,
+        SourceFolderLogoSettings? folderLogoSettings,
         IProgress<ProcessProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -160,9 +163,10 @@ public static class BatchProcessor
                         colorTheme.Id,
                         exportProfile.Id,
                         logoSettings.ModeSuffix,
-                        isHeif,
                         job.SaveAsPng);
                     string outPath = Path.Combine(outputFolder, outName);
+
+                    var brandForFile = BrandLogoResolver.ResolveForFile(file, imageBrand, folderLogoSettings);
 
                     ImagePipeline.ProcessAndSave(
                         file,
@@ -171,7 +175,7 @@ public static class BatchProcessor
                         colorTheme,
                         themeColors,
                         logoSettings,
-                        imageBrand,
+                        brandForFile,
                         exportProfile,
                         job);
                 }, cancellationToken);
