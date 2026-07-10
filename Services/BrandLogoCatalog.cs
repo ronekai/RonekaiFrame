@@ -34,6 +34,8 @@ public static class BrandLogoCatalog
 
         EnsureLogoFile(WhiteLogoPath, WhiteFileName);
         EnsureLogoFile(BlackLogoPath, BlackFileName);
+        EnsureLogoFile(HorizontalWhiteLogoPath, HorizontalWhiteFileName);
+        EnsureLogoFile(HorizontalBlackLogoPath, HorizontalBlackFileName);
     }
 
     private static void EnsureLogoFile(string targetPath, string fileName)

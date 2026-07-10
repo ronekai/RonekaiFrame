@@ -80,6 +80,19 @@ if (-not $originUrl) {
 $commitFile = Join-Path $root "commit-msg.txt"
 $porcelain = & $git status --porcelain 2>&1
 if ($porcelain) {
+    $assetFiles = @(
+        "Assets/filigram-08.svg",
+        "Assets/filigram-09.svg",
+        "Assets/nadir-figur-yatay-beyaz.svg",
+        "Assets/nadir-figur-yatay-siyah.svg"
+    )
+    foreach ($a in $assetFiles) {
+        $full = Join-Path $root $a
+        if (-not (Test-Path $full)) {
+            Log "UYARI: Eksik asset — $a (baska PC'de kurulum icin gerekli)"
+        }
+    }
+
     if (Test-Path $commitFile) {
         Log "Commit: commit-msg.txt"
         & $git commit -F $commitFile 2>&1 | ForEach-Object { Log $_ }

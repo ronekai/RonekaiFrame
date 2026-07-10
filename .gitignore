@@ -18,6 +18,7 @@ logo-path-settings.json
 processing-presets.json
 template-favorites.json
 Assets/.logo-cache/
+*_wpftmp.csproj
 *.exe
 *.pdb
 .DS_Store

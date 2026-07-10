@@ -6,15 +6,34 @@
 
 ## Hızlı başlangıç
 
+### Bu bilgisayarda (geliştirme)
+
 ```powershell
 cd "$env:USERPROFILE\Source\Repos\RonekaiFrame"
 taskkill /IM PhonixFrame.exe /F 2>$null
-taskkill /IM RonekaiFrame.exe /F 2>$null
 dotnet build
 dotnet run
 ```
 
 veya **`Calistir.bat`** / **`Derle.bat`** dosyalarına çift tıklayın.
+
+### Başka bilgisayarda (ilk kurulum)
+
+1. [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) kurun (veya `winget install Microsoft.DotNet.SDK.8`)
+2. [Git](https://git-scm.com/download/win) kurun (yoksa `GitKur.bat`)
+3. **`IndirVeKur.bat`** çalıştırın — GitHub'dan indirir, paketleri yükler, derler
+4. Program: **`Calistir.bat`** veya `bin\Debug\net8.0-windows\PhonixFrame.exe`
+
+Depo zaten indirildiyse proje klasöründe **`Kur.bat`** yeterlidir.
+
+**Varsayılan logo assetleri** (`Assets/` içinde, repoda dahil):
+
+| Dosya | Açıklama |
+|--------|----------|
+| `filigram-08.svg` | Dikey beyaz marka logosu |
+| `filigram-09.svg` | Dikey siyah marka logosu |
+| `nadir-figur-yatay-beyaz.svg` | Yatay beyaz logo |
+| `nadir-figur-yatay-siyah.svg` | Yatay siyah logo |
 
 Derleme hatası alırsanız sırayla deneyin: **`Derle.bat`** → **`TamTemizlik.bat`** → **`TemizleVeCalistir.bat`**. Ayrıntılar `build-output.txt` dosyasına yazılır.
 
@@ -64,11 +83,18 @@ Derleme hatası alırsanız sırayla deneyin: **`Derle.bat`** → **`TamTemizlik
 
 ## Logo dosyası
 
+**Programla gelen marka logoları** (`Assets/` — GitHub'da dahil):
+
+- `filigram-08.svg`, `filigram-09.svg` (dikey beyaz/siyah)
+- `nadir-figur-yatay-beyaz.svg`, `nadir-figur-yatay-siyah.svg` (yatay)
+
+İsteğe bağlı filigran logosu:
+
 ```
 Assets/ronekai-logo.png
 ```
 
-(veya `logo.png`, `ronekai-logo.jpg`, `*.svg` — Assets klasöründe; SVG vektör olarak rasterize edilir)
+(veya `logo.png`, `ronekai-logo.jpg`, `*.svg`)
 
 ## Mac / iPhone HEIC
 
@@ -78,6 +104,8 @@ HEIC okumak için Windows'ta [HEIF Image Extensions](https://apps.microsoft.com/
 
 | Dosya | Açıklama |
 |--------|----------|
+| **`IndirVeKur.bat`** | **GitHub'dan indir + ilk kurulum** (yeni bilgisayar) |
+| **`Kur.bat`** | Paketleri yükle, asset kontrolü, derle |
 | `Calistir.bat` | Derle ve programı aç |
 | `Derle.bat` | Sadece derle |
 | `TamTemizlik.bat` | bin/obj sil + derle |
@@ -109,7 +137,7 @@ Depo: https://github.com/ronekai/RonekaiFrame
 | `Templates/` | Görsel şablonları |
 | `Services/` | Toplu işlem, önizleme, logo, HEIC, WPF yedek JPEG okuyucu |
 | `Controls/` | Başlık markası bileşenleri |
-| `Assets/` | Varsayılan logo |
+| `Assets/` | Varsayılan marka logoları (SVG) + isteğe bağlı filigran |
 
 ## Gereksinimler
 
