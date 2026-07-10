@@ -1,9 +1,9 @@
 ﻿
-[2026-07-10 15:45:34] === PhonixFrame GitHub yukleme ===
-[2026-07-10 15:45:34] Klasor: C:\Users\mkaskara\Source\Repos\RonekaiFrame
-[2026-07-10 15:45:35] github.com
-[2026-07-10 15:45:35]   ✓ Logged in to github.com account ronekai (keyring)
-[2026-07-10 15:45:35]   - Active account: true
-[2026-07-10 15:45:35]   - Git operations protocol: https
-[2026-07-10 15:45:35]   - Token: gho_************************************
-[2026-07-10 15:45:35]   - Token scopes: 'gist', 'read:org', 'repo'
+[2026-07-10 15:46:51] === PhonixFrame GitHub yukleme ===
+[2026-07-10 15:46:51] Klasor: C:\Users\mkaskara\Source\Repos\RonekaiFrame
+[2026-07-10 15:46:52] github.com
+[2026-07-10 15:46:52]   ✓ Logged in to github.com account ronekai (keyring)
+[2026-07-10 15:46:52]   - Active account: true
+[2026-07-10 15:46:52]   - Git operations protocol: https
+[2026-07-10 15:46:52]   - Token: gho_************************************
+[2026-07-10 15:46:52]   - Token scopes: 'gist', 'read:org', 'repo'
