@@ -23,6 +23,7 @@ veya **`Calistir.bat`** / **`Derle.bat`** dosyalarına çift tıklayın.
 2. [Git](https://git-scm.com/download/win) kurun (yoksa `GitKur.bat`)
 3. **`IndirVeKur.bat`** çalıştırın — GitHub'dan indirir, paketleri yükler, derler
 4. Program: **`Calistir.bat`** veya `bin\Debug\net8.0-windows\PhonixFrame.exe`
+5. Masaüstü kısayolu: **`MasaustuKur.bat`** (projeden bağımsız açmak için)
 
 Depo zaten indirildiyse proje klasöründe **`Kur.bat`** yeterlidir.
 
@@ -106,6 +107,7 @@ HEIC okumak için Windows'ta [HEIF Image Extensions](https://apps.microsoft.com/
 |--------|----------|
 | **`IndirVeKur.bat`** | **GitHub'dan indir + ilk kurulum** (yeni bilgisayar) |
 | **`Kur.bat`** | Paketleri yükle, asset kontrolü, derle |
+| **`MasaustuKur.bat`** | **Masaüstüne kur** — Release derle, kısayol oluştur |
 | `Calistir.bat` | Derle ve programı aç |
 | `Derle.bat` | Sadece derle |
 | `TamTemizlik.bat` | bin/obj sil + derle |
