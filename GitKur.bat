@@ -16,7 +16,7 @@ if defined GIT_EXE (
     echo.
     where gh >nul 2>&1
     if errorlevel 1 (
-        echo GitHub CLI (gh) yok. Kurmak icin:
+        echo GitHub CLI ^(gh^) yok. Kurmak icin:
         echo   winget install GitHub.cli
         echo   gh auth login
     ) else (

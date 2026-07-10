@@ -1,4 +1,4 @@
-# PhonixFrame — GitHub'a son surumu yukle
+# PhonixFrame - GitHub'a son surumu yukle
 # Cagiran: GitHubYukle.bat
 # Log: github-yukle-log.txt
 param(
@@ -38,9 +38,12 @@ if (-not $git) {
     exit 1
 }
 
-$gh = Find-Exe "gh" @()
+$gh = Find-Exe "gh" @(
+    "C:\Program Files\GitHub CLI\gh.exe"
+)
 if (-not $gh) {
-    Log "HATA: GitHub CLI yok. winget install GitHub.cli && gh auth login"
+    Log "HATA: GitHub CLI yok. winget install GitHub.cli"
+    Log "Sonra: gh auth login"
     Read-Host "Enter ile kapat"
     exit 1
 }
@@ -66,7 +69,7 @@ if (-not (Test-Path (Join-Path $root ".git"))) {
 }
 
 $repoUrl = "https://github.com/ronekai/RonekaiFrame.git"
-$repoDesc = "PhonixFrame — toplu e-ticaret urun gorseli sablonlayici (WPF .NET 8)"
+$repoDesc = "PhonixFrame - toplu e-ticaret urun gorseli sablonlayici (WPF .NET 8)"
 
 $originUrl = & $git remote get-url origin 2>$null
 if (-not $originUrl) {
@@ -89,7 +92,7 @@ if ($porcelain) {
     foreach ($a in $assetFiles) {
         $full = Join-Path $root $a
         if (-not (Test-Path $full)) {
-            Log "UYARI: Eksik asset — $a (baska PC'de kurulum icin gerekli)"
+            Log "UYARI: Eksik asset - $a (baska PC kurulumu icin gerekli)"
         }
     }
 
@@ -97,12 +100,12 @@ if ($porcelain) {
         Log "Commit: commit-msg.txt"
         & $git commit -F $commitFile 2>&1 | ForEach-Object { Log $_ }
     } else {
-        $msg = "PhonixFrame — guncel surum"
+        $msg = "PhonixFrame - guncel surum"
         Log "Commit: $msg"
         & $git commit -m $msg 2>&1 | ForEach-Object { Log $_ }
     }
 } else {
-    Log "Degisiklik yok — mevcut commit push edilecek."
+    Log "Degisiklik yok - mevcut commit push edilecek."
 }
 
 & $git branch -M main 2>&1 | Out-Null
