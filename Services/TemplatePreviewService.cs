@@ -12,11 +12,13 @@ public sealed record LivePreviewResult(
     string SizeLabel,
     string Caption,
     bool Success,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    int OutputWidth = 0,
+    int OutputHeight = 0);
 
 public static class TemplatePreviewService
 {
-    private const int MaxDisplayWidth = 560;
+    private const int MaxDisplayWidth = 960;
 
     public static LivePreviewResult Render(
         IProductTemplate template,
@@ -35,6 +37,12 @@ public static class TemplatePreviewService
             using var _ = BrandThemeContext.Use(theme, themeColors);
             using var __ = ImageBrandContext.Use(imageBrand);
             using var ___ = ProcessingFitContext.Use(job.ResponsiveProductFit);
+
+            // Filigram / klon çıktı uzayında; logo/marka bunlardan SONRA gelsin
+            bool deferBrand = job.CropRect is not null
+                              || job.WatermarkCleanOps.Count > 0
+                              || job.TextureCloneOps.Count > 0;
+            using var ____ = BrandOverlayDeferContext.Use(deferBrand);
 
             Image<Rgba32> sourceImage;
             bool usedRealPhoto = false;
@@ -61,55 +69,104 @@ public static class TemplatePreviewService
                 bool stretchToExport = template.StretchToExport && !job.ResizeOnly;
                 ImgSize templateSize = skipFrame ? new ImgSize(srcW, srcH) : template.OutputSize;
 
-                Image<Rgba32> pipeline;
+                Image<Rgba32> frame;
                 if (skipFrame)
                 {
-                    pipeline = sourceImage.CloneAs<Rgba32>();
-                    ImageBrandOverlay.ApplyToCanvas(pipeline);
+                    frame = sourceImage.CloneAs<Rgba32>();
+                    if (!deferBrand)
+                    {
+                        LogoPlacementContext.Reset();
+                        ImageBrandOverlay.ApplyToCanvas(frame);
+                    }
                 }
                 else
                 {
                     LogoPlacementContext.Reset();
-                    using var templated = template.Apply(sourceImage);
-                    pipeline = templated.CloneAs<Rgba32>();
+                    frame = template.Apply(sourceImage);
                 }
 
-                using (pipeline)
+                using (frame)
                 {
-                    using var withLogo = ApplyLogoIfNeeded(pipeline, logoSettings);
-                    using var withText = job.TextOverlay.HasText
-                        ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
-                        : withLogo.CloneAs<Rgba32>();
+                    Image<Rgba32> output;
+                    if (!deferBrand)
+                    {
+                        using var withLogo = ApplyLogoIfNeeded(frame, logoSettings);
+                        using var withText = job.TextOverlay.HasText
+                            ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
+                            : withLogo.CloneAs<Rgba32>();
+                        output = OutputScaler.Apply(
+                            withText,
+                            exportProfile,
+                            srcW,
+                            srcH,
+                            templateSize,
+                            stretchToExport);
+                    }
+                    else
+                    {
+                        using var scaled = OutputScaler.Apply(
+                            frame,
+                            exportProfile,
+                            srcW,
+                            srcH,
+                            templateSize,
+                            stretchToExport);
 
-                    using var output = OutputScaler.Apply(
-                        withText,
-                        exportProfile,
-                        srcW,
-                        srcH,
-                        templateSize,
-                        stretchToExport);
+                        if (job.CropRect is { } crop)
+                            ImageCropper.ApplyNormalizedCrop(scaled, crop);
 
-                    var png = WpfImageHelper.EncodePng(output, MaxDisplayWidth);
+                        // Önce filigram, sonra klon, en sonda logo/marka
+                        if (job.WatermarkCleanOps.Count > 0)
+                            GeminiWatermarkCleaner.ApplyAll(scaled, job.WatermarkCleanOps);
 
-                    string logoNote = logoSettings.UsesLogo ? " · logo" : "";
-                    string textNote = job.TextOverlay.HasText ? " · metin" : "";
-                    string sourceNote = usedRealPhoto
-                        ? $"Gerçek fotoğraf: {Path.GetFileName(sampleSourceFile)}"
-                        : "Demo ürün görseli";
-                    string brandNote = ImageBrandOverlay.ShouldApply ? " · marka" : "";
-                    string modNote = job.ResizeOnly ? " · sadece boyutlandır"
-                        : template.IsPassthrough && !template.StretchToExport ? " · şablon yok"
-                        : template.StretchToExport ? " · yay"
-                        : job.ResponsiveProductFit ? " · responsif"
-                        : "";
-                    modNote += brandNote;
+                        if (job.TextureCloneOps.Count > 0)
+                            TextureCloneService.ApplyAll(scaled, job.TextureCloneOps);
 
-                    return new LivePreviewResult(
-                        png,
-                        OutputScaler.FormatTargetLabel(exportProfile, templateSize, srcW, srcH, stretchToExport),
-                        $"{sourceNote} · {imageBrand.MainText}{imageBrand.SuffixText}{logoNote}{textNote}{modNote}",
-                        true,
-                        null);
+                        LogoPlacementContext.Reset();
+                        ImageBrandOverlay.ApplyToCanvas(scaled);
+
+                        using var withLogo = ApplyLogoIfNeeded(scaled, logoSettings);
+                        output = job.TextOverlay.HasText
+                            ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
+                            : withLogo.CloneAs<Rgba32>();
+                    }
+
+                    using (output)
+                    {
+                        var png = WpfImageHelper.EncodePng(output, MaxDisplayWidth);
+
+                        string sizeLabel = job.CropRect is not null
+                            ? $"Çıktı: {output.Width} × {output.Height} px (kırp)"
+                            : OutputScaler.FormatTargetLabel(exportProfile, templateSize, srcW, srcH, stretchToExport);
+
+                        string logoNote = logoSettings.UsesLogo ? " · logo" : "";
+                        string textNote = job.TextOverlay.HasText ? " · metin" : "";
+                        string sourceNote = usedRealPhoto
+                            ? $"Gerçek fotoğraf: {Path.GetFileName(sampleSourceFile)}"
+                            : "Demo ürün görseli";
+                        string brandNote = ImageBrandOverlay.ShouldApply ? " · marka" : "";
+                        string modNote = job.ResizeOnly ? " · sadece boyutlandır"
+                            : template.IsPassthrough && !template.StretchToExport ? " · şablon yok"
+                            : template.StretchToExport ? " · yay"
+                            : job.ResponsiveProductFit ? " · responsif"
+                            : "";
+                        modNote += brandNote;
+                        if (job.CropRect is not null)
+                            modNote += " · kırp";
+                        if (job.WatermarkCleanOps.Count > 0)
+                            modNote += $" · filigram×{job.WatermarkCleanOps.Count}";
+                        if (job.TextureCloneOps.Count > 0)
+                            modNote += $" · klon×{job.TextureCloneOps.Count}";
+
+                        return new LivePreviewResult(
+                            png,
+                            sizeLabel,
+                            $"{sourceNote} · {imageBrand.MainText}{imageBrand.SuffixText}{logoNote}{textNote}{modNote}",
+                            true,
+                            null,
+                            output.Width,
+                            output.Height);
+                    }
                 }
             }
             finally

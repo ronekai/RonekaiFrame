@@ -1,6 +1,7 @@
 using RonekaiImageFramer.Models;
 using RonekaiImageFramer.Templates;
 using SixLabors.ImageSharp.PixelFormats;
+using System.Collections.Generic;
 
 namespace RonekaiImageFramer.Services;
 
@@ -19,11 +20,12 @@ public static class BatchProcessor
     public static IReadOnlyList<string> FindImages(string sourceFolder) =>
         Directory.EnumerateFiles(sourceFolder, "*.*", SearchOption.TopDirectoryOnly)
             .Where(f => ImageInputCatalog.IsSupportedExtension(Path.GetExtension(f)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
     public static int CountHeifImages(IEnumerable<string> files) =>
-        files.Count(ImageInputCatalog.IsHeifOrAliasFile);
+        files.Count(ImageInputCatalog.IsHeifFamilyFile);
 
     public static async Task<ProcessResult> ProcessFilesAsync(
         IReadOnlyList<string> files,
@@ -53,7 +55,7 @@ public static class BatchProcessor
             : template?.Id ?? "none";
         string? sampleFolder = null;
 
-        log.Add($"İşlenecek: {files.Count} dosya, {heifInBatch} HEIC/HEIF");
+        log.Add($"Islenecek: {files.Count} dosya, {heifInBatch} HEIC/HEIF/AVIF");
         log.Add($"Mod: {(job.ResizeOnly ? "Sadece boyutlandır"
             : template?.StretchToExport == true ? $"Yay → {exportProfile.Name}"
             : template?.IsPassthrough == true ? "Şablon yok"
@@ -143,6 +145,12 @@ public static class BatchProcessor
         int failed = 0;
         var messages = new List<string>();
 
+        HashSet<string>? croppedOnlySelectedSet = null;
+        if (job.CropOnlySelectedFiles && job.CropSelectedFilePaths.Count > 0)
+        {
+            croppedOnlySelectedSet = new HashSet<string>(job.CropSelectedFilePaths, StringComparer.OrdinalIgnoreCase);
+        }
+
         for (int i = 0; i < files.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -166,7 +174,18 @@ public static class BatchProcessor
                         job.SaveAsPng);
                     string outPath = Path.Combine(outputFolder, outName);
 
-                    var brandForFile = BrandLogoResolver.ResolveForFile(file, imageBrand, folderLogoSettings);
+                    // Klasörün tamamı: job.imageBrand (UI) kaynak. Seçili dosya modunda PerFile override.
+                    var brandForFile = job.ProcessOnlySelectedFiles
+                        ? BrandLogoResolver.ResolveForFile(
+                            file,
+                            imageBrand,
+                            folderLogoSettings,
+                            preferPerFileOverrides: true)
+                        : imageBrand;
+
+                        var cropOverride = croppedOnlySelectedSet is null
+                            ? job.CropRect
+                            : croppedOnlySelectedSet.Contains(file) ? job.CropRect : null;
 
                     ImagePipeline.ProcessAndSave(
                         file,
@@ -177,7 +196,8 @@ public static class BatchProcessor
                         logoSettings,
                         brandForFile,
                         exportProfile,
-                        job);
+                        job,
+                        cropOverride);
                 }, cancellationToken);
 
                 success++;
@@ -197,3 +217,4 @@ public static class BatchProcessor
         return (success, failed, messages);
     }
 }
+

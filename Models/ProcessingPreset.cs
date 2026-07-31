@@ -3,7 +3,7 @@ namespace RonekaiImageFramer.Models;
 public sealed class ProcessingPreset
 {
     public string Name { get; set; } = "Varsayılan";
-    public string TemplateId { get; set; } = "white-studio";
+    public string TemplateId { get; set; } = "sablon-yok";
     public string ColorPackId { get; set; } = "klasik";
     public string ExportProfileId { get; set; } = "template-default";
     public string LogoModeId { get; set; } = "None";

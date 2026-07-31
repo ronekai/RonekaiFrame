@@ -70,7 +70,7 @@ Derleme hatası alırsanız sırayla deneyin: **`Derle.bat`** → **`TamTemizlik
 - Instagram, WhatsApp, Sahibinden, Facebook, LinkedIn, Google Merchant, e-ticaret pro, web optimize, Amazon vb.
 
 ### Kaynak ve çıktı
-- **JPG, PNG, WEBP, HEIC/HEIF, .hdc** (alt klasörler dahil)
+- **JPG/JFIF, PNG, WEBP, AVIF, BMP, GIF, TIFF, ICO, SVG, HEIC/HEIF, .hdc
 - JPEG okuma: ImageSharp başarısız olursa **Windows WPF yedek kodlayıcı**
 - Bozuk veya bulut önizleme dosyaları için **açıklayıcı hata mesajları**
 - **Sürükle-bırak** klasör veya dosya; **dosya listesinden** yalnızca seçilenleri işleme

@@ -7,6 +7,7 @@ public static class TemplateRegistry
         new NoTemplateTemplate(),
         new YayTemplate(),
         new WhiteStudioTemplate(),
+        new BlackStudioTemplate(),
         new SoftShadowStudioTemplate(),
         new BrandBarBottomTemplate(),
         new BrandBarTopTemplate(),

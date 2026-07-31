@@ -11,18 +11,18 @@
         Loaded="MainWindow_Loaded"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
 
-    <Grid Margin="16,12,16,12">
+    <Grid Margin="12,8,12,8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*" MinHeight="180" MaxHeight="560"/>
-            <RowDefinition Height="10"/>
-            <RowDefinition Height="1.35*" MinHeight="340"/>
+            <RowDefinition Height="2.2*" MinHeight="360"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="*" MinHeight="220"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Başlık -->
-        <Grid Grid.Row="0" Margin="0,0,0,10">
+        <!-- Başlık (kompakt) -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -30,105 +30,248 @@
             </Grid.ColumnDefinitions>
             <controls:BrandingHeaderView x:Name="BrandingHeader" Grid.Column="0" VerticalAlignment="Center"/>
             <TextBlock Grid.Column="1" x:Name="ImageCountText"
-                       VerticalAlignment="Center" FontSize="13" Margin="16,0,12,0"
+                       VerticalAlignment="Center" FontSize="12" Margin="12,0,10,0"
                        Foreground="{StaticResource BrandMutedBrush}"/>
             <controls:BrandingSettingsButton x:Name="BrandingSettings" Grid.Column="2" VerticalAlignment="Center"/>
         </Grid>
 
-        <!-- Üst: Önizleme + Günlük -->
+        <!-- Üst: Önizleme sahnesi (ekranın büyük kısmı) + Günlük -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="4.8*" MinWidth="360"/>
-                <ColumnDefinition Width="10"/>
-                <ColumnDefinition Width="*" MinWidth="200" MaxWidth="320"/>
+                <ColumnDefinition Width="*" MinWidth="420"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="220" MinWidth="180" MaxWidth="260"/>
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Background="White" CornerRadius="10"
-                    Padding="4" BorderBrush="#E2E6ED" BorderThickness="1">
-                <ScrollViewer x:Name="PreviewScrollViewer"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Padding="8,6,8,6">
-                    <Grid MinHeight="360">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                    Padding="8,6,8,6" BorderBrush="#E2E6ED" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*" MinHeight="280"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                        <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                            <Border x:Name="PreviewModeBadge" DockPanel.Dock="Right" Background="#1B2A4A" CornerRadius="4"
-                                    Padding="10,4" VerticalAlignment="Center" Margin="8,0,0,0">
-                                <TextBlock x:Name="PreviewModeBadgeText" Text="DEMO" Foreground="White" FontWeight="Bold" FontSize="11"/>
-                            </Border>
+                    <!-- Araç çubuğu + kırp ayarları -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,6">
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="Canlı önizleme" FontWeight="SemiBold" FontSize="15"
-                                           Foreground="{StaticResource BrandPrimaryBrush}"/>
-                                <TextBlock Text=" · " FontSize="12" Foreground="#C5CAD6" Margin="2,0"/>
-                                <TextBlock Text="Şablon, renk ve logo değişince anında güncellenir."
-                                           FontSize="11" Foreground="{StaticResource BrandMutedBrush}"
-                                           VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                <TextBlock Text="Canlı önizleme" FontWeight="SemiBold" FontSize="14"
+                                           Foreground="{StaticResource BrandPrimaryBrush}" VerticalAlignment="Center"/>
+                                <Border x:Name="PreviewModeBadge" Background="#1B2A4A" CornerRadius="4"
+                                        Padding="8,3" VerticalAlignment="Center" Margin="10,0,0,0">
+                                    <TextBlock x:Name="PreviewModeBadgeText" Text="DEMO" Foreground="White" FontWeight="Bold" FontSize="10"/>
+                                </Border>
+                                <ComboBox x:Name="FiligramCleanStyleCombo" Width="108" Height="26"
+                                          Margin="12,0,4,0" VerticalAlignment="Center"
+                                          ToolTip="Temizlik stili: Bulut (yumuşak) veya Blok"/>
+                                <Button x:Name="CleanCornerWatermarkButton" Content="Filigram temizle"
+                                        Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,4,0"
+                                        ToolTip="Seçili alanı temizler; seçim ekranda kalır (kırp veya başka alan için)"
+                                        Click="CleanCornerWatermarkButton_Click"/>
+                                <Button x:Name="FiligramCleanUndoButton" Content="Filigram ↶"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4"
+                                        ToolTip="Son filigram temizliğini geri al"
+                                        Click="FiligramCleanUndoButton_Click" IsEnabled="False"/>
+                                <ToggleButton x:Name="CloneStampModeToggle" Content="Klon"
+                                              Padding="10,4" Margin="12,0,4,0"
+                                              ToolTip="1) Sol tık: kaynak (yeşil). 2) Sol tık/sürükle: damga. Sağ tık: kaynağı yeniden seç."
+                                              Checked="CloneStampModeToggle_Changed"
+                                              Unchecked="CloneStampModeToggle_Changed"/>
+                                <Button x:Name="ClonePickSourceButton" Content="Kaynak al"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,4,0"
+                                        ToolTip="Sonraki sol tık yeni kaynak olur. Sağ tık da kaynağı seçer."
+                                        Click="ClonePickSourceButton_Click"/>
+                                <TextBlock Text="Boyut" VerticalAlignment="Center" FontSize="11" Margin="4,0,4,0"
+                                           Foreground="{StaticResource BrandMutedBrush}"/>
+                                <Slider x:Name="CloneBrushSizeSlider" Width="72" Height="26"
+                                        Minimum="2" Maximum="20" Value="6" VerticalAlignment="Center"
+                                        ToolTip="Fırça yarıçapı (görsel kısa kenarın %)"
+                                        ValueChanged="CloneBrushSizeSlider_Changed"/>
+                                <TextBlock x:Name="CloneBrushSizeLabel" Text="6%"
+                                           VerticalAlignment="Center" FontSize="11" Margin="4,0,4,0"
+                                           Foreground="{StaticResource BrandMutedBrush}" MinWidth="28"/>
+                                <Button x:Name="CloneUndoButton" Content="Klon ↶"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4"
+                                        ToolTip="Son klon damgasını geri al"
+                                        Click="CloneUndoButton_Click" IsEnabled="False"/>
+                                <TextBlock x:Name="CloneStatusHint" Text=""
+                                           VerticalAlignment="Center" FontSize="11" Margin="8,0,0,0"
+                                           Foreground="#0A7EA4" FontWeight="SemiBold"/>
+                                <Button x:Name="PreviewZoomOutButton" Content="🔍−"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="12,0,2,0"
+                                        ToolTip="Uzaklaştır (Ctrl + tekerlek)"
+                                        Click="PreviewZoomOut_Click"/>
+                                <Button x:Name="PreviewZoomInButton" Content="🔍+"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                        ToolTip="Yakınlaştır (Ctrl + tekerlek)"
+                                        Click="PreviewZoomIn_Click"/>
+                                <Button x:Name="PreviewZoomResetButton" Content="100%"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4"
+                                        ToolTip="Varsayılan yakınlaştırma (Ctrl + 0)"
+                                        Click="PreviewZoomReset_Click"/>
+                                <TextBlock x:Name="PreviewZoomLabel" Text="100%"
+                                           VerticalAlignment="Center" FontSize="11" Margin="6,0,0,0"
+                                           Foreground="{StaticResource BrandMutedBrush}"/>
+                                <ToggleButton x:Name="PinSelectModeToggle" Content="📌 Pin seçim"
+                                              Padding="10,4" Margin="12,0,4,0"
+                                              ToolTip="Sol tık: pin koy (max 20). Sağ tık: son pini sil. 2 pin=çizgi, 3+=çokgen."
+                                              Checked="PinSelectModeToggle_Changed"
+                                              Unchecked="PinSelectModeToggle_Changed"/>
+                                <Button x:Name="PinUndoButton" Content="Pin ↶"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                        ToolTip="Son pini sil"
+                                        Click="PinUndoButton_Click" IsEnabled="False"/>
+                                <Button x:Name="PinClearButton" Content="Pinleri sil"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4"
+                                        ToolTip="Tüm pinleri temizle"
+                                        Click="PinClearButton_Click" IsEnabled="False"/>
                             </StackPanel>
-                        </DockPanel>
+                            <TextBlock Grid.Column="1" Text="Ctrl+tekerlek: zoom · Pin: nokta koy · Sürükle: seç"
+                                       FontSize="10" Foreground="{StaticResource BrandMutedBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <WrapPanel Orientation="Horizontal">
+                            <TextBlock Text="En" VerticalAlignment="Center" FontSize="11" Margin="0,0,4,0"
+                                       Foreground="{StaticResource BrandMutedBrush}"/>
+                            <TextBox x:Name="CropWidthPxBox" Width="64" Height="26" Margin="0,0,8,0"
+                                     VerticalContentAlignment="Center" Padding="4,0"
+                                     ToolTip="Seçim genişliği (px)"
+                                     LostFocus="CropPxBox_LostFocus" KeyDown="CropPxBox_KeyDown"/>
+                            <TextBlock Text="Boy" VerticalAlignment="Center" FontSize="11" Margin="0,0,4,0"
+                                       Foreground="{StaticResource BrandMutedBrush}"/>
+                            <TextBox x:Name="CropHeightPxBox" Width="64" Height="26" Margin="0,0,8,0"
+                                     VerticalContentAlignment="Center" Padding="4,0"
+                                     ToolTip="Seçim yüksekliği (px)"
+                                     LostFocus="CropPxBox_LostFocus" KeyDown="CropPxBox_KeyDown"/>
+                            <Button Content="−" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,2,0"
+                                    ToolTip="Seçimi 1 px daralt" Click="CropShrink_Click"/>
+                            <Button Content="+" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,8,0"
+                                    ToolTip="Seçimi 1 px genişlet" Click="CropGrow_Click"/>
+                            <Button Content="En −" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                    ToolTip="Genişliği 1 px azalt" Click="CropShrinkWidth_Click"/>
+                            <Button Content="En +" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,6,0"
+                                    ToolTip="Genişliği 1 px artır" Click="CropGrowWidth_Click"/>
+                            <Button Content="Boy −" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                    ToolTip="Yüksekliği 1 px azalt" Click="CropShrinkHeight_Click"/>
+                            <Button Content="Boy +" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,10,0"
+                                    ToolTip="Yüksekliği 1 px artır" Click="CropGrowHeight_Click"/>
+                            <Button Content="4:3" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,2,0"
+                                    ToolTip="Görsele sığan en büyük 4:3 seçimi (ortalanmış)" Click="CropAspect43_Click"/>
+                            <Button Content="4:4" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,2,0"
+                                    ToolTip="Görsele sığan en büyük 4:4 (kare) seçimi (ortalanmış)" Click="CropAspect44_Click"/>
+                            <Button Content="4:5" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,10,0"
+                                    ToolTip="Görsele sığan en büyük 4:5 seçimi (ortalanmış)" Click="CropAspect45_Click"/>
+                            <Button Content="◀" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                    ToolTip="1 px sola kaydır" Click="CropAlignLeft_Click"/>
+                            <Button Content="●" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                    ToolTip="Yatay ortala" Click="CropAlignCenterH_Click"/>
+                            <Button Content="▶" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,8,0"
+                                    ToolTip="1 px sağa kaydır" Click="CropAlignRight_Click"/>
+                            <Button Content="▲" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                    ToolTip="1 px yukarı kaydır" Click="CropAlignTop_Click"/>
+                            <Button Content="◆" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                    ToolTip="Dikey ortala" Click="CropAlignCenterV_Click"/>
+                            <Button Content="▼" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,10,0"
+                                    ToolTip="1 px aşağı kaydır" Click="CropAlignBottom_Click"/>
+                            <Button x:Name="CropApplyButton" Content="Kırp"
+                                    Style="{StaticResource PrimaryButton}" Padding="14,5" Margin="0,0,6,0"
+                                    Click="CropApply_Click" IsEnabled="False"
+                                    ToolTip="Seçili alanı uygula (logo/yazı yeni boyuta göre yerleşir)"/>
+                            <Button x:Name="CropUndoButton" Content="↶ Geri al"
+                                    Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,6,0"
+                                    Click="CropUndo_Click" IsEnabled="False"/>
+                            <Button x:Name="CropClearButton" Content="✕ Sıfırla"
+                                    Style="{StaticResource SecondaryButton}" Padding="10,5"
+                                    Click="CropClear_Click" IsEnabled="False"/>
+                        </WrapPanel>
+                    </StackPanel>
 
-                        <Border Grid.Row="1" Background="#ECEFF4" CornerRadius="8"
-                                BorderBrush="#D0D5DE" BorderThickness="1"
-                                Height="300" MinHeight="220" MaxHeight="420">
-                            <Grid>
+                    <!-- Sahne: Ctrl+tekerlek ile yakınlaştırma -->
+                    <Border Grid.Row="1" Background="#ECEFF4" CornerRadius="8"
+                            BorderBrush="#D0D5DE" BorderThickness="1" ClipToBounds="True">
+                        <ScrollViewer x:Name="PreviewScrollViewer"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto"
+                                      CanContentScroll="False"
+                                      Focusable="True"
+                                      PreviewMouseWheel="PreviewScrollViewer_PreviewMouseWheel"
+                                      SizeChanged="PreviewScrollViewer_SizeChanged">
+                            <Grid x:Name="PreviewZoomHost" Background="Transparent">
                                 <TextBlock x:Name="PreviewPlaceholderText"
                                            Text="Önizleme hazırlanıyor…"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{StaticResource BrandMutedBrush}" FontSize="14"/>
                                 <Image x:Name="LivePreviewImage" Stretch="Uniform"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Margin="12" Visibility="Collapsed"
+                                       HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                       Margin="8" Visibility="Collapsed"
                                        MouseLeftButtonDown="LivePreviewImage_MouseLeftButtonDown"
+                                       MouseRightButtonDown="LivePreviewImage_MouseRightButtonDown"
+                                       MouseMove="LivePreviewImage_MouseMove"
+                                       MouseLeftButtonUp="LivePreviewImage_MouseLeftButtonUp"
                                        Cursor="Arrow"/>
+                                <Canvas x:Name="PreviewPinCanvas"
+                                        IsHitTestVisible="False"/>
+                                <Canvas x:Name="PreviewCloneCanvas"
+                                        IsHitTestVisible="False"/>
+                                <Grid x:Name="PreviewCropSelectionRect"
+                                      Visibility="Collapsed"
+                                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                                      IsHitTestVisible="False">
+                                    <Rectangle Fill="#18000000"
+                                               Stroke="#B3000000"
+                                               StrokeThickness="1"
+                                               StrokeDashArray="2,2"
+                                               SnapsToDevicePixels="True"
+                                               UseLayoutRounding="True"/>
+                                    <Rectangle Fill="Transparent"
+                                               Stroke="#F2FFFFFF"
+                                               StrokeThickness="1"
+                                               StrokeDashArray="2,2"
+                                               StrokeDashOffset="2"
+                                               SnapsToDevicePixels="True"
+                                               UseLayoutRounding="True"/>
+                                </Grid>
                             </Grid>
-                        </Border>
+                        </ScrollViewer>
+                    </Border>
 
-                        <Border Grid.Row="2" Background="#F8F9FB" CornerRadius="6"
-                                Padding="8,6" Margin="0,8,0,0" BorderBrush="#E2E6ED" BorderThickness="1">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock x:Name="PreviewSizeText" FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{StaticResource BrandPrimaryBrush}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="    " VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="PreviewCaptionText" FontSize="11"
-                                               Foreground="{StaticResource BrandMutedBrush}"
-                                               VerticalAlignment="Center" TextWrapping="Wrap"/>
-                                </StackPanel>
-                                <TextBlock Grid.Row="1" x:Name="PreviewErrorText" TextWrapping="Wrap" FontSize="11"
-                                           Foreground="#B42318" Margin="0,4,0,0" Visibility="Collapsed"/>
-                            </Grid>
-                        </Border>
+                    <!-- Boyut / durum satırı -->
+                    <Grid Grid.Row="2" Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="PreviewSizeText" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource BrandPrimaryBrush}" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" x:Name="PreviewCaptionText" FontSize="10"
+                                   Foreground="{StaticResource BrandMutedBrush}"
+                                   VerticalAlignment="Center" Margin="10,0,0,0"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="0" Grid.ColumnSpan="2" x:Name="PreviewErrorText"
+                                   TextWrapping="Wrap" FontSize="11"
+                                   Foreground="#B42318" Visibility="Collapsed"/>
                     </Grid>
-                </ScrollViewer>
+                </Grid>
             </Border>
 
             <Border Grid.Column="2" Background="White" CornerRadius="10"
-                    Padding="10,10,10,10" BorderBrush="#E2E6ED" BorderThickness="1">
+                    Padding="8,8,8,8" BorderBrush="#E2E6ED" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
-                        <TextBlock Text="İşlem günlüğü" FontWeight="SemiBold" FontSize="14"
-                                   Foreground="{StaticResource BrandPrimaryBrush}"/>
-                        <TextBlock Text=" · " FontSize="12" Foreground="#C5CAD6" Margin="2,0"/>
-                        <TextBlock Text="Toplu işlem kaydı"
-                                   FontSize="11" Foreground="{StaticResource BrandMutedBrush}"
-                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
+                    <TextBlock Grid.Row="0" Text="İşlem günlüğü" FontWeight="SemiBold" FontSize="12"
+                               Foreground="{StaticResource BrandPrimaryBrush}" Margin="0,0,0,6"/>
                     <Border Grid.Row="1" Background="#F8F9FB" CornerRadius="6" BorderBrush="#E2E6ED" BorderThickness="1"
                             Padding="4">
                         <ListBox x:Name="LogList" BorderThickness="0" Background="Transparent"
-                                 FontFamily="Consolas" FontSize="11"
+                                 FontFamily="Consolas" FontSize="10"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ScrollViewer.VerticalScrollBarVisibility="Visible"/>
                     </Border>
@@ -794,8 +937,14 @@
                                                    Foreground="{StaticResource BrandMutedBrush}"/>
                                     </Grid>
 
+                                    <TextBlock Text="Çıktı dosya formatı" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox x:Name="OutputFormatCombo" Height="28" Margin="0,0,0,4"
+                                              SelectionChanged="OutputFormatCombo_SelectionChanged"/>
+                                    <TextBlock Text="PNG, AVIF, WEBP kaynaklar da işlenir; varsayılan çıktı JPEG (.jpg)."
+                                               FontSize="10" Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,8"/>
                                     <CheckBox x:Name="SaveAsPngCheck" Content="PNG olarak kaydet (JPEG yerine)"
-                                              Margin="0,0,0,8" Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
+                                              Visibility="Collapsed"
+                                              Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
 
                                     <TextBlock Text="Dosya adı şablonu (varsayılan: orijinal ad)" Style="{StaticResource FieldLabel}"/>
                                     <TextBox x:Name="OutputFileNameBox" Height="28" Margin="0,0,0,4"
@@ -816,6 +965,17 @@
                                              LostFocus="AdvancedOption_Changed"/>
                                     <TextBlock Text="Seçilen sayıda dosya _Onizleme_Ornekleri alt klasörüne işlenir"
                                                FontSize="10" Foreground="{StaticResource BrandMutedBrush}"/>
+
+                                    <Separator Margin="0,10,0,10" Opacity="0.35"/>
+                                    <CheckBox x:Name="CropModeCheck"
+                                              Content="Kırp modu (önizlemede kes + geri al)"
+                                              IsChecked="True"
+                                              Visibility="Collapsed"
+                                              Margin="0,0,0,6"
+                                              Checked="CropModeCheck_Changed"
+                                              Unchecked="CropModeCheck_Changed"/>
+
+                                    <!-- Crop kontrolleri artık üst bardadır. -->
                                 </StackPanel>
                             </Expander>
 

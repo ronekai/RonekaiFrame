@@ -4,7 +4,10 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Ellipse = System.Windows.Shapes.Ellipse;
+using Polygon = System.Windows.Shapes.Polygon;
 using Microsoft.Win32;
 using RonekaiImageFramer.Models;
 using RonekaiImageFramer.Services;
@@ -23,6 +26,7 @@ public partial class MainWindow : Window
     private string _customRonekaiHex = "#1B2A4A";
     private string _customDenHex = "#C9A227";
     private CancellationTokenSource? _previewCts;
+    private int _previewGeneration;
     private bool _previewReady;
     private bool _updatingBrandFields;
     private bool _updatingLogoPathUi;
@@ -33,6 +37,35 @@ public partial class MainWindow : Window
     private string? _eyedropperColorField;
     private ThemeColorSet _themeColors = ThemeColorSet.FromHex("#F5F6F8", "#1B2A4A", "#C9A227");
     private ThemeColorAppearance _brandLogoTint = ThemeColorAppearance.FromHex("#1B2A4A", "#C9A227");
+
+    // Canlı önizlemede kırpma: pending seçim + uygulanan crop
+    private NormalizedCropRect? _activeCropRect;
+    private NormalizedCropRect? _pendingCropRect;
+    private readonly Stack<NormalizedCropRect?> _cropUndoStack = [];
+    private bool _isCropping;
+    private Point _cropDragStart;
+    private NormalizedCropRect? _cropRectAtDragStart;
+    private string _cropDragMode = "none"; // none | create | move | resize
+    private string _cropResizeHandle = ""; // nw,ne,sw,se,n,s,e,w
+    private int _previewPixelWidth;
+    private int _previewPixelHeight;
+    private bool _updatingCropPxUi;
+    private readonly List<WatermarkCleanOp> _watermarkCleanOps = [];
+    private readonly List<TextureCloneOp> _textureCloneOps = [];
+    private bool _cloneStampMode;
+    private bool _clonePickSourceNext;
+    private Point? _cloneSourceNorm; // sabit kaynak merkezi (mutlak klon)
+    private Point? _cloneHoverNorm;
+    private bool _clonePainting;
+    private Point? _cloneLastStampNorm;
+    private double _previewZoom = 1.0;
+    private const double PreviewZoomMin = 0.5;
+    private const double PreviewZoomMax = 8.0;
+    private const double PreviewZoomStep = 1.15;
+    private bool _pinSelectMode;
+    private readonly List<Point> _selectionPins = []; // normalized 0..1
+    private const int MaxSelectionPins = 20;
+
     private bool _updatingAppearanceUi;
     private bool _updatingBrandLogoUi;
     private string? _brandLogoEditingFilePath;
@@ -41,6 +74,7 @@ public partial class MainWindow : Window
     private bool _updatingSourceFolderUi;
 
     private sealed record FolderListItem(string Label, string Path);
+    private sealed record OutputFormatListItem(string Label, bool SaveAsPng);
 
     private bool IsPerFileBrandLogoMode() => ProcessSelectedOnlyCheck?.IsChecked == true;
 
@@ -86,7 +120,7 @@ public partial class MainWindow : Window
         InitializeBrandFontCombos();
         _updatingBrandFields = false;
 
-        RefreshTemplateComboItems(selectId: "white-studio");
+        RefreshTemplateComboItems(selectId: "sablon-yok");
         OutputFileNameBox.Text = OutputFileNamer.DefaultPattern;
         OutputFileNameBox.ToolTip =
             "Varsayılan: {base} — orijinal dosya adı (tarih zaten çıktı klasöründe). " +
@@ -102,7 +136,10 @@ public partial class MainWindow : Window
         TextOverlayEnabledCheck.Checked += (_, _) => TextOverlayTextBox.IsEnabled = TextOverlayEnabledCheck.IsChecked == true;
         TextOverlayEnabledCheck.Unchecked += (_, _) => TextOverlayTextBox.IsEnabled = TextOverlayEnabledCheck.IsChecked == true;
         JpegQualitySlider.ValueChanged += JpegQualitySlider_ValueChanged;
+        InitializeOutputFormatCombo();
         LoadPresets();
+        // Açılışta varsayılan şablon: Şablon yok
+        RefreshTemplateComboItems(selectId: "sablon-yok");
 
         RefreshExportResolutionComboItems();
         RefreshExportResolutionHint();
@@ -130,6 +167,8 @@ public partial class MainWindow : Window
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        InitializeFiligramCleanStyleCombo();
+        RefreshPreviewZoomUi();
         _previewReady = true;
         _lastSourceFolderPath = GetRootSourceFolder();
         _lastActiveSourceFolder = GetActiveSourceFolder();
@@ -457,11 +496,19 @@ public partial class MainWindow : Window
     private ImageBrandSettings BuildPreviewImageBrandSettings()
     {
         var global = BuildImageBrandSettings();
+        // Klasörün tamamı: UI kaynak — eski PerFile kayıtları paradox yaratmasın
+        if (!IsPerFileBrandLogoMode())
+            return global;
+
         string? sampleFile = TryGetPreviewSourceImageFile(GetActiveSourceFolder());
         if (sampleFile is null)
             return global;
 
-        return BrandLogoResolver.ResolveForFile(sampleFile, global, GetCurrentFolderLogoSettings());
+        return BrandLogoResolver.ResolveForFile(
+            sampleFile,
+            global,
+            GetCurrentFolderLogoSettings(),
+            preferPerFileOverrides: true);
     }
 
     private SourceFolderLogoSettings? GetFolderLogoSettings(string? folder)
@@ -625,8 +672,8 @@ public partial class MainWindow : Window
             return;
 
         ProcessSelectionHint.Text = IsPerFileBrandLogoMode()
-            ? "İşlem: yalnızca listede seçili dosyalar. Logo: seçili dosyalardan birini düzenleyin."
-            : "İşlem: bu klasördeki tüm görseller (alt klasörler hariç). Logo ayarı aynı kapsama uygulanır.";
+            ? "İşlem: yalnızca seçili dosyalar. Logo/konum: seçili dosyaya özel."
+            : "İşlem: klasörün tamamı. Logo/konum: tüm görsellere aynı ayar (dosya-başı logo kayıtları yok sayılır).";
     }
 
     private void ProcessSelectedOnlyCheck_Changed(object sender, RoutedEventArgs e)
@@ -786,6 +833,7 @@ public partial class MainWindow : Window
 
         var logoSettings = ReadBrandLogoUiAsSettings();
         SyncGlobalBrandLogoStore(logoSettings);
+        ImageBrandStore.Save(logoSettings);
 
         var folderSettings = GetCurrentFolderLogoSettings();
         if (folderSettings is not null)
@@ -793,10 +841,7 @@ public partial class MainWindow : Window
             folderSettings.FolderDefault = ReadBrandLogoUiAsOverride();
             PrunePerFileEntries(folderSettings, folderSettings.FolderPath!);
             SourceFolderLogoStore.Save(folderSettings);
-            return;
         }
-
-        ImageBrandStore.Save(logoSettings);
     }
 
     private void PersistBrandLogoFromUi(string? filePath = null)
@@ -893,7 +938,7 @@ public partial class MainWindow : Window
 
         if (!IsPerFileBrandLogoMode())
         {
-            BrandLogoScopeHint.Text = "Logo ayarları bu klasördeki görsellere uygulanır (alt klasörler dahil değil).";
+            BrandLogoScopeHint.Text = "Logo ve konum bu klasördeki TÜM görsellere uygulanır. «Seçili dosyaları işle» kapalıyken dosya-başı logo kayıtları kullanılmaz.";
             return;
         }
 
@@ -1029,7 +1074,23 @@ public partial class MainWindow : Window
             RefreshBrandLogoScopeHint();
         }
 
+        // Dosya değişince önceki kırpma/önizleme takılı kalmasın
+        ResetCropStateForNewSource();
         ScheduleLivePreview();
+    }
+
+    private void ResetCropStateForNewSource()
+    {
+        _activeCropRect = null;
+        _pendingCropRect = null;
+        _watermarkCleanOps.Clear();
+        RefreshFiligramCleanButtonUi();
+        ClearTextureCloneState();
+        ClearSelectionPins();
+        _cropUndoStack.Clear();
+        CancelCropDrag();
+        SetCropOverlay(null);
+        UpdateCropUi();
     }
 
     private static void SelectPlacementCombo(ComboBox combo, OverlayPlacement placement)
@@ -1403,6 +1464,7 @@ public partial class MainWindow : Window
             ResponsiveProductFitCheck.IsChecked = preset.ResponsiveProductFit;
             JpegQualitySlider.Value = preset.JpegQuality;
             SaveAsPngCheck.IsChecked = preset.SaveAsPng;
+            SyncOutputFormatComboFromSaveAsPng(preset.SaveAsPng);
             OutputFileNameBox.Text = string.IsNullOrWhiteSpace(preset.FileNamePattern)
                 ? OutputFileNamer.DefaultPattern
                 : preset.FileNamePattern;
@@ -1439,7 +1501,7 @@ public partial class MainWindow : Window
 
     private ProcessingPreset CaptureCurrentPreset(string name)
     {
-        var templateId = TemplateCombo.SelectedItem is TemplateListItem t ? t.Template.Id : "white-studio";
+        var templateId = TemplateCombo.SelectedItem is TemplateListItem t ? t.Template.Id : "sablon-yok";
         var colorId = ColorPackCombo.SelectedItem is ColorPackListItem c ? c.Theme.Id : "klasik";
         var exportId = ExportResolutionCombo.SelectedItem is ExportResolutionListItem e ? e.Profile.Id : "template-default";
         var logoId = LogoModeCombo.SelectedItem is LogoModeListItem l ? l.Mode.ToString() : "None";
@@ -1481,7 +1543,7 @@ public partial class MainWindow : Window
             ThemeColors = BuildThemeColorSet().Clone(),
             ResizeOnly = ResizeOnlyCheck.IsChecked == true,
             JpegQuality = (int)JpegQualitySlider.Value,
-            SaveAsPng = SaveAsPngCheck.IsChecked == true,
+            SaveAsPng = OutputFormatCombo?.SelectedItem is OutputFormatListItem fmt ? fmt.SaveAsPng : SaveAsPngCheck.IsChecked == true,
             FileNamePattern = OutputFileNameBox.Text.Trim(),
             TextOverlayEnabled = TextOverlayEnabledCheck.IsChecked == true,
             TextOverlayText = TextOverlayTextBox.Text ?? "",
@@ -1530,20 +1592,113 @@ public partial class MainWindow : Window
     {
         var template = TemplateCombo.SelectedItem is TemplateListItem t ? t.Template : null;
         bool resizeOnly = ResizeOnlyCheck.IsChecked == true;
+
+        var selectedFiles = SourceFileList.SelectedItems
+            .Cast<string>()
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToList();
+        bool cropOnlySelected = _activeCropRect is not null && selectedFiles.Count > 0;
         return new()
         {
             ResizeOnly = resizeOnly,
             StretchToExport = template?.StretchToExport == true && !resizeOnly,
             ResponsiveProductFit = ResponsiveProductFitCheck.IsChecked == true && !resizeOnly,
             JpegQuality = (int)JpegQualitySlider.Value,
-            SaveAsPng = SaveAsPngCheck.IsChecked == true,
+            SaveAsPng = OutputFormatCombo?.SelectedItem is OutputFormatListItem fmt ? fmt.SaveAsPng : SaveAsPngCheck.IsChecked == true,
             FileNamePattern = string.IsNullOrWhiteSpace(OutputFileNameBox.Text)
                 ? OutputFileNamer.DefaultPattern
                 : OutputFileNameBox.Text.Trim(),
             TextOverlay = BuildTextOverlaySettings(),
             SamplePreviewCount = ParseSampleCount(),
-            ProcessOnlySelectedFiles = ProcessSelectedOnlyCheck.IsChecked == true
+            ProcessOnlySelectedFiles = ProcessSelectedOnlyCheck.IsChecked == true,
+            CropRect = _activeCropRect,
+            CropOnlySelectedFiles = cropOnlySelected,
+            CropSelectedFilePaths = cropOnlySelected ? selectedFiles : [],
+            WatermarkCleanOps = _watermarkCleanOps.ToList(),
+            TextureCloneOps = _textureCloneOps.ToList()
         };
+    }
+
+    private WatermarkCleanStyle GetSelectedFiligramCleanStyle()
+    {
+        if (FiligramCleanStyleCombo?.SelectedItem is FiligramStyleItem item)
+            return item.Style;
+        if (FiligramCleanStyleCombo?.SelectedValue is WatermarkCleanStyle s)
+            return s;
+        return WatermarkCleanStyle.Cloud;
+    }
+
+    private void InitializeFiligramCleanStyleCombo()
+    {
+        if (FiligramCleanStyleCombo is null)
+            return;
+        FiligramCleanStyleCombo.Items.Clear();
+        FiligramCleanStyleCombo.DisplayMemberPath = "Name";
+        FiligramCleanStyleCombo.SelectedValuePath = "Style";
+        FiligramCleanStyleCombo.Items.Add(new FiligramStyleItem("Bulut / duman", WatermarkCleanStyle.Cloud));
+        FiligramCleanStyleCombo.Items.Add(new FiligramStyleItem("Blok", WatermarkCleanStyle.Block));
+        FiligramCleanStyleCombo.SelectedIndex = 0;
+    }
+
+    private void RefreshFiligramCleanButtonUi()
+    {
+        if (FiligramCleanUndoButton is not null)
+            FiligramCleanUndoButton.IsEnabled = _watermarkCleanOps.Count > 0;
+        if (CleanCornerWatermarkButton is not null)
+        {
+            CleanCornerWatermarkButton.Content = _watermarkCleanOps.Count > 0
+                ? $"Filigram temizle ({_watermarkCleanOps.Count})"
+                : "Filigram temizle";
+        }
+    }
+
+    private void CleanCornerWatermarkButton_Click(object sender, RoutedEventArgs e)
+    {
+        var style = GetSelectedFiligramCleanStyle();
+        IReadOnlyList<NormalizedPoint>? poly = null;
+
+        if (_selectionPins.Count >= 2)
+        {
+            poly = _selectionPins.Select(p => new NormalizedPoint(p.X, p.Y)).ToList();
+        }
+        else if (_pendingCropRect is { } rect)
+        {
+            poly =
+            [
+                new NormalizedPoint(rect.Left, rect.Top),
+                new NormalizedPoint(rect.Left + rect.Width, rect.Top),
+                new NormalizedPoint(rect.Left + rect.Width, rect.Top + rect.Height),
+                new NormalizedPoint(rect.Left, rect.Top + rect.Height)
+            ];
+        }
+
+        if (poly is null)
+        {
+            if (CropModeCheck is not null)
+                CropModeCheck.IsChecked = true;
+            MessageBox.Show(
+                "Filigram alanını seçin:" + Environment.NewLine
+                + "• Pin seçim ile en az 2 pin koyun (çokgen / çizgi), veya" + Environment.NewLine
+                + "• sürükleyerek dikdörtgen seçin" + Environment.NewLine + Environment.NewLine
+                + "Sonra «Filigram temizle»ye basın.",
+                "Filigram alanı gerekli",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        _watermarkCleanOps.Add(new WatermarkCleanOp(style, poly));
+        RefreshFiligramCleanButtonUi();
+        ScheduleLivePreview();
+    }
+
+    private void FiligramCleanUndoButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_watermarkCleanOps.Count == 0)
+            return;
+        _watermarkCleanOps.RemoveAt(_watermarkCleanOps.Count - 1);
+        RefreshFiligramCleanButtonUi();
+        ScheduleLivePreview();
     }
 
     private void SelectTextOverlayPosition(string positionId)
@@ -1582,6 +1737,46 @@ public partial class MainWindow : Window
         if (!int.TryParse(SamplePreviewCountBox.Text?.Trim(), out int n) || n < 0)
             return 0;
         return Math.Min(n, 20);
+    }
+
+
+    private void InitializeOutputFormatCombo()
+    {
+        if (OutputFormatCombo is null)
+            return;
+
+        OutputFormatCombo.ItemsSource = new[]
+        {
+            new OutputFormatListItem("JPEG (.jpg) — varsayılan", false),
+            new OutputFormatListItem("PNG (.png)", true)
+        };
+        OutputFormatCombo.DisplayMemberPath = "Label";
+        OutputFormatCombo.SelectedIndex = 0;
+        if (SaveAsPngCheck is not null)
+            SaveAsPngCheck.IsChecked = false;
+    }
+
+    private void OutputFormatCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingPreset || OutputFormatCombo?.SelectedItem is not OutputFormatListItem item)
+            return;
+        if (SaveAsPngCheck is not null)
+            SaveAsPngCheck.IsChecked = item.SaveAsPng;
+        ScheduleLivePreview();
+    }
+
+    private void SyncOutputFormatComboFromSaveAsPng(bool saveAsPng)
+    {
+        if (OutputFormatCombo?.ItemsSource is null)
+            return;
+        foreach (OutputFormatListItem item in OutputFormatCombo.Items)
+        {
+            if (item.SaveAsPng == saveAsPng)
+            {
+                OutputFormatCombo.SelectedItem = item;
+                return;
+            }
+        }
     }
 
     private void JpegQualitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -2135,20 +2330,1207 @@ public partial class MainWindow : Window
         _eyedropperColorField = null;
         if (EyedropperHintText is not null)
             EyedropperHintText.Visibility = Visibility.Collapsed;
-        LivePreviewImage.Cursor = Cursors.Arrow;
+        LivePreviewImage.Cursor = CropModeCheck?.IsChecked == true ? Cursors.Cross : Cursors.Arrow;
         Mouse.OverrideCursor = null;
+    }
+
+    private bool IsCropModeEnabled => CropModeCheck?.IsChecked == true;
+
+    private void UpdateCropUi()
+    {
+        if (CropUndoButton is not null)
+            CropUndoButton.IsEnabled = _cropUndoStack.Count > 0;
+        if (CropClearButton is not null)
+            CropClearButton.IsEnabled = _activeCropRect is not null || _pendingCropRect is not null;
+        if (CropApplyButton is not null)
+            CropApplyButton.IsEnabled = _pendingCropRect is not null;
+        SyncCropPxBoxesFromPending();
+    }
+
+    private void CropModeCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsCropModeEnabled)
+        {
+            CancelCropDrag();
+            if (_eyedropperColorField is null)
+                LivePreviewImage.Cursor = Cursors.Arrow;
+        }
+        else if (_eyedropperColorField is null && LivePreviewImage.Visibility == Visibility.Visible)
+        {
+            LivePreviewImage.Cursor = Cursors.Cross;
+        }
+
+        UpdateCropUi();
+    }
+
+    private void CropApply_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pendingCropRect is null)
+            return;
+
+        NormalizedCropRect newActive = _activeCropRect is { } oldCrop
+            ? new NormalizedCropRect(
+                oldCrop.Left + _pendingCropRect.Left * oldCrop.Width,
+                oldCrop.Top + _pendingCropRect.Top * oldCrop.Height,
+                _pendingCropRect.Width * oldCrop.Width,
+                _pendingCropRect.Height * oldCrop.Height)
+            : _pendingCropRect;
+
+        _cropUndoStack.Push(_activeCropRect);
+        _activeCropRect = newActive;
+        _pendingCropRect = null;
+        CancelCropDrag();
+        UpdateCropUi();
+        SetCropOverlay(null);
+        ScheduleLivePreview();
+    }
+
+    private void CropUndo_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cropUndoStack.Count == 0)
+            return;
+
+        _activeCropRect = _cropUndoStack.Pop();
+        _pendingCropRect = null;
+        CancelCropDrag();
+        UpdateCropUi();
+        SetCropOverlay(null);
+        ScheduleLivePreview();
+    }
+
+    private void CropClear_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeCropRect is null && _pendingCropRect is null)
+            return;
+
+        if (_activeCropRect is not null)
+            _cropUndoStack.Push(_activeCropRect);
+        _activeCropRect = null;
+        _pendingCropRect = null;
+        CancelCropDrag();
+        UpdateCropUi();
+        SetCropOverlay(null);
+        ScheduleLivePreview();
+    }
+
+    private void CancelCropDrag()
+    {
+        _isCropping = false;
+        _cropDragMode = "none";
+        _cropResizeHandle = "";
+        _cropRectAtDragStart = null;
+        if (LivePreviewImage.IsMouseCaptured)
+            LivePreviewImage.ReleaseMouseCapture();
+    }
+
+    private bool IsCloneStampMode => _cloneStampMode || CloneStampModeToggle?.IsChecked == true;
+
+    private double GetCloneRadiusNorm()
+    {
+        double pct = CloneBrushSizeSlider?.Value ?? 6;
+        return Math.Clamp(pct / 100.0, 0.02, 0.20);
+    }
+
+    private void CloneStampModeToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        _cloneStampMode = CloneStampModeToggle?.IsChecked == true;
+        if (_cloneStampMode)
+        {
+            if (PinSelectModeToggle?.IsChecked == true)
+                PinSelectModeToggle.IsChecked = false;
+            CancelCropDrag();
+            if (LivePreviewImage.Visibility == Visibility.Visible)
+                LivePreviewImage.Cursor = Cursors.Cross;
+        }
+        else
+        {
+            _clonePickSourceNext = false;
+            _cloneHoverNorm = null;
+            _clonePainting = false;
+            _cloneLastStampNorm = null;
+            if (_eyedropperColorField is null && !IsPinSelectMode)
+                LivePreviewImage.Cursor = CropModeCheck?.IsChecked == true ? Cursors.Cross : Cursors.Arrow;
+        }
+        RefreshCloneButtonsUi();
+        RefreshCloneOverlay();
+    }
+
+    private void ClonePickSourceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsCloneStampMode)
+            CloneStampModeToggle.IsChecked = true;
+        _clonePickSourceNext = true;
+        RefreshCloneButtonsUi();
+    }
+
+    private void CloneBrushSizeSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (CloneBrushSizeLabel is not null)
+            CloneBrushSizeLabel.Text = $"{(int)(CloneBrushSizeSlider?.Value ?? 6)}%";
+        RefreshCloneOverlay();
+    }
+
+    private void CloneUndoButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_textureCloneOps.Count == 0)
+            return;
+        _textureCloneOps.RemoveAt(_textureCloneOps.Count - 1);
+        RefreshCloneButtonsUi();
+        ScheduleLivePreview();
+    }
+
+    private void ClearTextureCloneState()
+    {
+        _textureCloneOps.Clear();
+        _cloneSourceNorm = null;
+        _clonePickSourceNext = false;
+        _cloneHoverNorm = null;
+        _clonePainting = false;
+        _cloneLastStampNorm = null;
+        if (CloneStampModeToggle is not null)
+            CloneStampModeToggle.IsChecked = false;
+        _cloneStampMode = false;
+        RefreshCloneButtonsUi();
+        RefreshCloneOverlay();
+    }
+
+    private void RefreshCloneButtonsUi()
+    {
+        if (CloneUndoButton is not null)
+            CloneUndoButton.IsEnabled = _textureCloneOps.Count > 0;
+        if (CloneStampModeToggle is not null)
+        {
+            CloneStampModeToggle.Content = _textureCloneOps.Count > 0
+                ? $"Klon ({_textureCloneOps.Count})"
+                : "Klon";
+        }
+        if (ClonePickSourceButton is not null)
+        {
+            if (_clonePickSourceNext)
+                ClonePickSourceButton.Content = "Kaynak…";
+            else if (_cloneSourceNorm is null)
+                ClonePickSourceButton.Content = "Kaynak al";
+            else
+                ClonePickSourceButton.Content = "Yeniden kaynak";
+        }
+        if (CloneStatusHint is not null)
+        {
+            if (!IsCloneStampMode)
+                CloneStatusHint.Text = "";
+            else if (_cloneSourceNorm is null || _clonePickSourceNext)
+                CloneStatusHint.Text = "→ Kaynak seç (sol tık)";
+            else
+                CloneStatusHint.Text = "→ Hedefe tıkla / sürükle · sağ tık = yeni kaynak";
+        }
+    }
+
+    private void SetCloneSource(Point norm)
+    {
+        _cloneSourceNorm = norm;
+        _clonePickSourceNext = false;
+        _cloneLastStampNorm = null;
+        RefreshCloneButtonsUi();
+        RefreshCloneOverlay();
+    }
+
+    private void StampCloneAt(Point destNorm, bool deferPreview)
+    {
+        if (_cloneSourceNorm is null)
+            return;
+
+        var src = _cloneSourceNorm.Value;
+        double radius = GetCloneRadiusNorm();
+
+        // Aynı noktaya aşırı sık damgayı atla (sürüklerken)
+        if (_cloneLastStampNorm is { } last)
+        {
+            double dx = destNorm.X - last.X;
+            double dy = destNorm.Y - last.Y;
+            double minDist = radius * 0.35;
+            if (dx * dx + dy * dy < minDist * minDist)
+                return;
+        }
+
+        _textureCloneOps.Add(new TextureCloneOp(
+            new NormalizedPoint(src.X, src.Y),
+            new NormalizedPoint(destNorm.X, destNorm.Y),
+            radius));
+        _cloneLastStampNorm = destNorm;
+        RefreshCloneButtonsUi();
+        RefreshCloneOverlay();
+        if (!deferPreview)
+            ScheduleLivePreview();
+    }
+
+    private void RefreshCloneOverlay()
+    {
+        if (PreviewCloneCanvas is null)
+            return;
+
+        PreviewCloneCanvas.Children.Clear();
+        if (!IsCloneStampMode && _cloneSourceNorm is null)
+            return;
+        if (!TryGetLetterboxMapping(out _, out var rw, out var rh, out var ox, out var oy))
+            return;
+        if (PreviewCloneCanvas.Parent is not UIElement parent || LivePreviewImage is null)
+            return;
+
+        var origin = LivePreviewImage.TranslatePoint(new Point(0, 0), parent);
+        double shortPx = Math.Min(rw, rh);
+        double radiusPx = Math.Max(8, GetCloneRadiusNorm() * shortPx);
+
+        void AddBrushRing(Point n, Color stroke, Color fill, double thickness)
+        {
+            double cx = origin.X + ox + n.X * rw;
+            double cy = origin.Y + oy + n.Y * rh;
+            var ring = new System.Windows.Shapes.Ellipse
+            {
+                Width = radiusPx * 2,
+                Height = radiusPx * 2,
+                Stroke = new SolidColorBrush(stroke),
+                StrokeThickness = thickness,
+                Fill = new SolidColorBrush(fill),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(ring, cx - radiusPx);
+            Canvas.SetTop(ring, cy - radiusPx);
+            PreviewCloneCanvas.Children.Add(ring);
+
+            // Merkez nokta
+            var dot = new System.Windows.Shapes.Ellipse
+            {
+                Width = 5,
+                Height = 5,
+                Fill = new SolidColorBrush(stroke),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(dot, cx - 2.5);
+            Canvas.SetTop(dot, cy - 2.5);
+            PreviewCloneCanvas.Children.Add(dot);
+        }
+
+        void AddLabel(Point n, string text, Color color)
+        {
+            double cx = origin.X + ox + n.X * rw;
+            double cy = origin.Y + oy + n.Y * rh;
+            var label = new TextBlock
+            {
+                Text = text,
+                Foreground = new SolidColorBrush(color),
+                FontWeight = FontWeights.Bold,
+                FontSize = 11,
+                IsHitTestVisible = false,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = Colors.Black,
+                    BlurRadius = 2,
+                    ShadowDepth = 0,
+                    Opacity = 0.7
+                }
+            };
+            Canvas.SetLeft(label, cx + radiusPx * 0.55);
+            Canvas.SetTop(label, cy - 8);
+            PreviewCloneCanvas.Children.Add(label);
+        }
+
+        // Kaynak seçilirken: yeşil önizleme (seçim bitince kaybolur)
+        if (_cloneHoverNorm is { } onlyHover && IsCloneStampMode && (_cloneSourceNorm is null || _clonePickSourceNext))
+        {
+            AddBrushRing(onlyHover,
+                Color.FromArgb(230, 40, 180, 70),
+                Color.FromArgb(40, 40, 180, 70),
+                2);
+            AddLabel(onlyHover, "KAYNAK", Color.FromArgb(255, 40, 180, 70));
+            return;
+        }
+
+        // Kaynak seçildikten sonra sabit kaynak dairesi yok; sadece hedef fırçası
+        if (_cloneHoverNorm is { } bc && IsCloneStampMode && _cloneSourceNorm is not null && !_clonePickSourceNext)
+        {
+            AddBrushRing(bc,
+                Color.FromArgb(230, 255, 140, 0),
+                Color.FromArgb(45, 255, 140, 0),
+                2);
+        }
+    }
+
+    private bool IsPinSelectMode => _pinSelectMode || PinSelectModeToggle?.IsChecked == true;
+
+    private void PinSelectModeToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        _pinSelectMode = PinSelectModeToggle?.IsChecked == true;
+        if (_pinSelectMode)
+        {
+            if (CloneStampModeToggle?.IsChecked == true)
+                CloneStampModeToggle.IsChecked = false;
+            if (CropModeCheck is not null)
+                CropModeCheck.IsChecked = true;
+            CancelCropDrag();
+            if (LivePreviewImage.Visibility == Visibility.Visible)
+                LivePreviewImage.Cursor = Cursors.Pen;
+        }
+        else if (_eyedropperColorField is null)
+        {
+            LivePreviewImage.Cursor = CropModeCheck?.IsChecked == true ? Cursors.Cross : Cursors.Arrow;
+        }
+
+        RefreshPinButtonsUi();
+        RefreshPinOverlay();
+    }
+
+    private void PinUndoButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectionPins.Count == 0)
+            return;
+        _selectionPins.RemoveAt(_selectionPins.Count - 1);
+        ApplyPinsToPendingSelection();
+        RefreshPinOverlay();
+        RefreshPinButtonsUi();
+        UpdateCropUi();
+    }
+
+    private void PinClearButton_Click(object sender, RoutedEventArgs e) => ClearSelectionPins();
+
+    private void ClearSelectionPins()
+    {
+        _selectionPins.Clear();
+        RefreshPinOverlay();
+        RefreshPinButtonsUi();
+    }
+
+    private void RefreshPinButtonsUi()
+    {
+        if (PinUndoButton is not null)
+            PinUndoButton.IsEnabled = _selectionPins.Count > 0;
+        if (PinClearButton is not null)
+            PinClearButton.IsEnabled = _selectionPins.Count > 0;
+        if (PinSelectModeToggle is not null && _selectionPins.Count > 0)
+            PinSelectModeToggle.Content = $"📌 Pin ({_selectionPins.Count})";
+        else if (PinSelectModeToggle is not null)
+            PinSelectModeToggle.Content = "📌 Pin seçim";
+    }
+
+    private void ApplyPinsToPendingSelection()
+    {
+        if (_selectionPins.Count == 0)
+            return;
+
+        if (_selectionPins.Count == 1)
+        {
+            var p = _selectionPins[0];
+            const double half = 0.03;
+            _pendingCropRect = ClampNormRect(p.X - half, p.Y - half, half * 2, half * 2);
+            // Tek pin: küçük kutu göster
+            SetCropOverlay(_pendingCropRect);
+            return;
+        }
+
+        // Araçlar için bbox; görsel seçim çokgen/çizgi overlay'de
+        double minX = _selectionPins.Min(p => p.X);
+        double minY = _selectionPins.Min(p => p.Y);
+        double maxX = _selectionPins.Max(p => p.X);
+        double maxY = _selectionPins.Max(p => p.Y);
+        _pendingCropRect = ClampNormRect(minX, minY, Math.Max(0.002, maxX - minX), Math.Max(0.002, maxY - minY));
+        // Biçimsiz seçim: dikdörtgen çerçeveyi gizle, pin çokgeni görünsün
+        SetCropOverlay(null);
+    }
+
+    private void RefreshPinOverlay()
+    {
+        if (PreviewPinCanvas is null)
+            return;
+
+        PreviewPinCanvas.Children.Clear();
+        if (_selectionPins.Count == 0)
+            return;
+        if (!TryGetLetterboxMapping(out _, out var rw, out var rh, out var ox, out var oy))
+            return;
+        if (PreviewPinCanvas.Parent is not UIElement parent)
+            return;
+
+        var origin = LivePreviewImage.TranslatePoint(new Point(0, 0), parent);
+        var screenPts = new PointCollection();
+        foreach (var p in _selectionPins)
+            screenPts.Add(new Point(origin.X + ox + p.X * rw, origin.Y + oy + p.Y * rh));
+
+        // 2 pin: en kısa yol (doğru parçası) kalın çizgi
+        // 3+ pin: kapalı çokgen (pin sırası + son→ilk)
+        if (_selectionPins.Count == 2)
+        {
+            var line = new System.Windows.Shapes.Line
+            {
+                X1 = screenPts[0].X,
+                Y1 = screenPts[0].Y,
+                X2 = screenPts[1].X,
+                Y2 = screenPts[1].Y,
+                Stroke = new SolidColorBrush(Color.FromArgb(200, 255, 59, 48)),
+                StrokeThickness = 4,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                IsHitTestVisible = false
+            };
+            PreviewPinCanvas.Children.Add(line);
+        }
+        else if (_selectionPins.Count >= 3)
+        {
+            var fill = new Polygon
+            {
+                Points = screenPts,
+                Fill = new SolidColorBrush(Color.FromArgb(55, 255, 59, 48)),
+                Stroke = new SolidColorBrush(Color.FromArgb(220, 255, 59, 48)),
+                StrokeThickness = 1.5,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                IsHitTestVisible = false
+            };
+            PreviewPinCanvas.Children.Add(fill);
+        }
+        else if (_selectionPins.Count >= 2)
+        {
+            // yedek polyline
+            var pl = new System.Windows.Shapes.Polyline
+            {
+                Points = screenPts,
+                Stroke = new SolidColorBrush(Color.FromArgb(200, 255, 59, 48)),
+                StrokeThickness = 2,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                IsHitTestVisible = false
+            };
+            PreviewPinCanvas.Children.Add(pl);
+        }
+
+        // Pin noktaları (üste)
+        for (int i = 0; i < _selectionPins.Count; i++)
+        {
+            double cx = screenPts[i].X;
+            double cy = screenPts[i].Y;
+
+            var outer = new Ellipse
+            {
+                Width = 14,
+                Height = 14,
+                Fill = new SolidColorBrush(Color.FromArgb(230, 255, 59, 48)),
+                Stroke = Brushes.White,
+                StrokeThickness = 1.5,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(outer, cx - 7);
+            Canvas.SetTop(outer, cy - 7);
+            PreviewPinCanvas.Children.Add(outer);
+
+            var label = new TextBlock
+            {
+                Text = (i + 1).ToString(),
+                FontSize = 9,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(label, cx - (i + 1 >= 10 ? 5.5 : 3.5));
+            Canvas.SetTop(label, cy - 7);
+            PreviewPinCanvas.Children.Add(label);
+        }
+    }
+
+    private void PreviewZoomIn_Click(object sender, RoutedEventArgs e) =>
+        ZoomPreviewBy(PreviewZoomStep);
+
+    private void PreviewZoomOut_Click(object sender, RoutedEventArgs e) =>
+        ZoomPreviewBy(1.0 / PreviewZoomStep);
+
+    private void PreviewZoomReset_Click(object sender, RoutedEventArgs e) =>
+        ResetPreviewZoom();
+
+    private void ZoomPreviewBy(double factor)
+    {
+        Point? center = null;
+        if (PreviewScrollViewer is not null
+            && PreviewScrollViewer.ViewportWidth > 1
+            && PreviewScrollViewer.ViewportHeight > 1)
+        {
+            center = new Point(
+                PreviewScrollViewer.ViewportWidth / 2,
+                PreviewScrollViewer.ViewportHeight / 2);
+        }
+        ApplyPreviewZoom(_previewZoom * factor, center);
+    }
+
+    private void ResetPreviewZoom() => ApplyPreviewZoom(1.0, null);
+
+    private void PreviewScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control)
+            return;
+
+        e.Handled = true;
+        if (PreviewScrollViewer is null)
+            return;
+
+        var pos = e.GetPosition(PreviewScrollViewer);
+        double factor = e.Delta > 0 ? PreviewZoomStep : 1.0 / PreviewZoomStep;
+        ApplyPreviewZoom(_previewZoom * factor, pos);
+    }
+
+    private void PreviewScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdatePreviewZoomHostSize();
+        Dispatcher.BeginInvoke(RefreshPendingCropOverlay, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void ApplyPreviewZoom(double newZoom, Point? zoomCenterInViewport)
+    {
+        newZoom = Math.Clamp(newZoom, PreviewZoomMin, PreviewZoomMax);
+        if (Math.Abs(newZoom - 1.0) < 0.02)
+            newZoom = 1.0;
+
+        var sv = PreviewScrollViewer;
+        if (sv is null)
+        {
+            _previewZoom = newZoom;
+            RefreshPreviewZoomUi();
+            return;
+        }
+
+        double oldZoom = Math.Max(0.01, _previewZoom);
+        Point? contentPoint = null;
+        if (zoomCenterInViewport is { } vp)
+            contentPoint = new Point(sv.HorizontalOffset + vp.X, sv.VerticalOffset + vp.Y);
+
+        _previewZoom = newZoom;
+        UpdatePreviewZoomHostSize();
+        sv.UpdateLayout();
+
+        if (newZoom <= 1.001)
+        {
+            sv.ScrollToHorizontalOffset(0);
+            sv.ScrollToVerticalOffset(0);
+        }
+        else if (contentPoint is { } cp && zoomCenterInViewport is { } vp2)
+        {
+            double scale = newZoom / oldZoom;
+            double targetX = cp.X * scale - vp2.X;
+            double targetY = cp.Y * scale - vp2.Y;
+            sv.ScrollToHorizontalOffset(Math.Max(0, targetX));
+            sv.ScrollToVerticalOffset(Math.Max(0, targetY));
+        }
+
+        RefreshPreviewZoomUi();
+        Dispatcher.BeginInvoke(RefreshPendingCropOverlay, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void UpdatePreviewZoomHostSize()
+    {
+        if (PreviewScrollViewer is null || PreviewZoomHost is null)
+            return;
+
+        double vw = PreviewScrollViewer.ViewportWidth;
+        double vh = PreviewScrollViewer.ViewportHeight;
+        if (vw < 2 || vh < 2)
+        {
+            vw = Math.Max(vw, PreviewScrollViewer.ActualWidth);
+            vh = Math.Max(vh, PreviewScrollViewer.ActualHeight);
+        }
+        if (vw < 2 || vh < 2)
+            return;
+
+        PreviewZoomHost.Width = vw * _previewZoom;
+        PreviewZoomHost.Height = vh * _previewZoom;
+    }
+
+    private void RefreshPreviewZoomUi()
+    {
+        string label = $"{(int)Math.Round(_previewZoom * 100)}%";
+        if (PreviewZoomLabel is not null)
+            PreviewZoomLabel.Text = label;
+        if (PreviewZoomResetButton is not null)
+            PreviewZoomResetButton.Content = label;
+        if (PreviewZoomInButton is not null)
+            PreviewZoomInButton.IsEnabled = _previewZoom < PreviewZoomMax - 0.001;
+        if (PreviewZoomOutButton is not null)
+            PreviewZoomOutButton.IsEnabled = _previewZoom > PreviewZoomMin + 0.001;
+    }
+
+    private bool TryGetLetterboxMapping(out BitmapSource bitmap, out double renderedW, out double renderedH, out double offsetX, out double offsetY)
+    {
+        bitmap = null!;
+        renderedW = 0;
+        renderedH = 0;
+        offsetX = 0;
+        offsetY = 0;
+
+        if (LivePreviewImage.Source is not BitmapSource b)
+            return false;
+
+        if (LivePreviewImage.ActualWidth < 1 || LivePreviewImage.ActualHeight < 1)
+            return false;
+
+        bitmap = b;
+        double sourceW = bitmap.Width;
+        double sourceH = bitmap.Height;
+        double scale = Math.Min(LivePreviewImage.ActualWidth / sourceW, LivePreviewImage.ActualHeight / sourceH);
+        if (scale <= 0)
+            return false;
+
+        renderedW = sourceW * scale;
+        renderedH = sourceH * scale;
+        offsetX = (LivePreviewImage.ActualWidth - renderedW) / 2;
+        offsetY = (LivePreviewImage.ActualHeight - renderedH) / 2;
+        return renderedW > 0 && renderedH > 0;
+    }
+
+    private bool TryPointToNorm(Point p, out double nx, out double ny)
+    {
+        nx = 0;
+        ny = 0;
+        if (!TryGetLetterboxMapping(out _, out var renderedW, out var renderedH, out var offsetX, out var offsetY))
+            return false;
+        nx = Math.Clamp((p.X - offsetX) / renderedW, 0, 1);
+        ny = Math.Clamp((p.Y - offsetY) / renderedH, 0, 1);
+        return true;
+    }
+
+    private bool TryComputeNormRectFromPoints(Point a, Point b, out NormalizedCropRect rect)
+    {
+        rect = default!;
+        if (!TryPointToNorm(a, out var x1, out var y1) || !TryPointToNorm(b, out var x2, out var y2))
+            return false;
+
+        double left = Math.Min(x1, x2);
+        double top = Math.Min(y1, y2);
+        double right = Math.Max(x1, x2);
+        double bottom = Math.Max(y1, y2);
+        double width = right - left;
+        double height = bottom - top;
+        if (width < 0.002 || height < 0.002)
+            return false;
+
+        rect = new NormalizedCropRect(left, top, width, height);
+        return true;
+    }
+
+    private static NormalizedCropRect ClampNormRect(double left, double top, double width, double height)
+    {
+        width = Math.Clamp(width, 0.01, 1);
+        height = Math.Clamp(height, 0.01, 1);
+        left = Math.Clamp(left, 0, 1 - width);
+        top = Math.Clamp(top, 0, 1 - height);
+        return new NormalizedCropRect(left, top, width, height);
+    }
+
+    private void SetCropOverlay(NormalizedCropRect? rect)
+    {
+        if (PreviewCropSelectionRect is null)
+            return;
+
+        if (rect is null)
+        {
+            PreviewCropSelectionRect.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        if (!TryGetLetterboxMapping(out _, out var renderedW, out var renderedH, out var offsetX, out var offsetY))
+            return;
+
+        if (PreviewCropSelectionRect.Parent is not UIElement parent)
+            return;
+
+        var origin = LivePreviewImage.TranslatePoint(new Point(0, 0), parent);
+        double left = origin.X + offsetX + rect.Left * renderedW;
+        double top = origin.Y + offsetY + rect.Top * renderedH;
+
+        PreviewCropSelectionRect.Visibility = Visibility.Visible;
+        PreviewCropSelectionRect.Margin = new Thickness(left, top, 0, 0);
+        PreviewCropSelectionRect.Width = Math.Max(2, rect.Width * renderedW);
+        PreviewCropSelectionRect.Height = Math.Max(2, rect.Height * renderedH);
+    }
+
+    private void RefreshPendingCropOverlay()
+    {
+        SetCropOverlay(_pendingCropRect);
+        RefreshPinOverlay();
+    }
+
+    private void SyncCropPxBoxesFromPending()
+    {
+        if (_updatingCropPxUi)
+            return;
+        _updatingCropPxUi = true;
+        try
+        {
+            if (_pendingCropRect is null || _previewPixelWidth < 1 || _previewPixelHeight < 1)
+            {
+                if (CropWidthPxBox is not null) CropWidthPxBox.Text = "";
+                if (CropHeightPxBox is not null) CropHeightPxBox.Text = "";
+                return;
+            }
+
+            int w = Math.Max(1, (int)Math.Round(_pendingCropRect.Width * _previewPixelWidth));
+            int h = Math.Max(1, (int)Math.Round(_pendingCropRect.Height * _previewPixelHeight));
+            if (CropWidthPxBox is not null) CropWidthPxBox.Text = w.ToString();
+            if (CropHeightPxBox is not null) CropHeightPxBox.Text = h.ToString();
+        }
+        finally
+        {
+            _updatingCropPxUi = false;
+        }
+    }
+
+    private void ApplyCropPxFromBoxes()
+    {
+        if (_updatingCropPxUi || _previewPixelWidth < 1 || _previewPixelHeight < 1)
+            return;
+        if (!int.TryParse(CropWidthPxBox?.Text?.Trim(), out int w) || w < 1)
+            return;
+        if (!int.TryParse(CropHeightPxBox?.Text?.Trim(), out int h) || h < 1)
+            return;
+
+        w = Math.Min(w, _previewPixelWidth);
+        h = Math.Min(h, _previewPixelHeight);
+        double nw = w / (double)_previewPixelWidth;
+        double nh = h / (double)_previewPixelHeight;
+
+        double left;
+        double top;
+        if (_pendingCropRect is { } cur)
+        {
+            left = cur.Left + (cur.Width - nw) / 2;
+            top = cur.Top + (cur.Height - nh) / 2;
+        }
+        else
+        {
+            left = (1 - nw) / 2;
+            top = (1 - nh) / 2;
+        }
+
+        _pendingCropRect = ClampNormRect(left, top, nw, nh);
+        RefreshPendingCropOverlay();
+        UpdateCropUi();
+    }
+
+    private void CropPxBox_LostFocus(object sender, RoutedEventArgs e) => ApplyCropPxFromBoxes();
+
+    private void CropPxBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            ApplyCropPxFromBoxes();
+            e.Handled = true;
+        }
+    }
+
+    private void CropAlignLeft_Click(object sender, RoutedEventArgs e) => NudgePendingPosition(-1, 0);
+    private void CropAlignCenterH_Click(object sender, RoutedEventArgs e) => AlignPending(h: "center");
+    private void CropAlignRight_Click(object sender, RoutedEventArgs e) => NudgePendingPosition(1, 0);
+    private void CropAlignTop_Click(object sender, RoutedEventArgs e) => NudgePendingPosition(0, -1);
+    private void CropAlignCenterV_Click(object sender, RoutedEventArgs e) => AlignPending(v: "center");
+    private void CropAlignBottom_Click(object sender, RoutedEventArgs e) => NudgePendingPosition(0, 1);
+
+    private void CropShrink_Click(object sender, RoutedEventArgs e) => NudgePendingSize(-1, -1);
+    private void CropGrow_Click(object sender, RoutedEventArgs e) => NudgePendingSize(1, 1);
+    private void CropShrinkWidth_Click(object sender, RoutedEventArgs e) => NudgePendingSize(-1, 0);
+    private void CropGrowWidth_Click(object sender, RoutedEventArgs e) => NudgePendingSize(1, 0);
+    private void CropShrinkHeight_Click(object sender, RoutedEventArgs e) => NudgePendingSize(0, -1);
+    private void CropGrowHeight_Click(object sender, RoutedEventArgs e) => NudgePendingSize(0, 1);
+
+    private void CropAspect43_Click(object sender, RoutedEventArgs e) => FitPendingToAspect(4, 3);
+    private void CropAspect44_Click(object sender, RoutedEventArgs e) => FitPendingToAspect(4, 4);
+    private void CropAspect45_Click(object sender, RoutedEventArgs e) => FitPendingToAspect(4, 5);
+
+    private void EnsurePendingCropExists()
+    {
+        if (_pendingCropRect is not null)
+            return;
+        // Varsayılan: ortada %60×%60 seçim
+        _pendingCropRect = ClampNormRect(0.2, 0.2, 0.6, 0.6);
+    }
+
+    private void FitPendingToAspect(int ratioW, int ratioH)
+    {
+        int baseW = Math.Max(1, _previewPixelWidth);
+        int baseH = Math.Max(1, _previewPixelHeight);
+        if (ratioW < 1 || ratioH < 1)
+            return;
+
+        double targetAr = ratioW / (double)ratioH;
+        double imageAr = baseW / (double)baseH;
+
+        int cropW;
+        int cropH;
+        if (imageAr > targetAr)
+        {
+            // Gorsel daha genis -> yuksekligi doldur
+            cropH = baseH;
+            cropW = Math.Clamp((int)Math.Round(baseH * targetAr), 1, baseW);
+        }
+        else
+        {
+            // Gorsel daha dik -> genisligi doldur
+            cropW = baseW;
+            cropH = Math.Clamp((int)Math.Round(baseW / targetAr), 1, baseH);
+        }
+
+        double nw = cropW / (double)baseW;
+        double nh = cropH / (double)baseH;
+        double left = (1.0 - nw) / 2.0;
+        double top = (1.0 - nh) / 2.0;
+        _pendingCropRect = ClampNormRect(left, top, nw, nh);
+        RefreshPendingCropOverlay();
+        UpdateCropUi();
+    }
+
+    private void NudgePendingPosition(int deltaXPx, int deltaYPx)
+    {
+        EnsurePendingCropExists();
+        if (_pendingCropRect is null)
+            return;
+
+        int baseW = Math.Max(1, _previewPixelWidth);
+        int baseH = Math.Max(1, _previewPixelHeight);
+        var r = _pendingCropRect;
+        double left = r.Left + deltaXPx / (double)baseW;
+        double top = r.Top + deltaYPx / (double)baseH;
+        _pendingCropRect = ClampNormRect(left, top, r.Width, r.Height);
+        RefreshPendingCropOverlay();
+        UpdateCropUi();
+    }
+
+    private void ScalePending(double widthFactor, double heightFactor)
+    {
+        EnsurePendingCropExists();
+        if (_pendingCropRect is null)
+            return;
+
+        var r = _pendingCropRect;
+        double nw = Math.Clamp(r.Width * widthFactor, 0.01, 1);
+        double nh = Math.Clamp(r.Height * heightFactor, 0.01, 1);
+        double left = r.Left + (r.Width - nw) / 2;
+        double top = r.Top + (r.Height - nh) / 2;
+        _pendingCropRect = ClampNormRect(left, top, nw, nh);
+        RefreshPendingCropOverlay();
+        UpdateCropUi();
+    }
+
+    private void NudgePendingSize(int deltaWidthPx, int deltaHeightPx)
+    {
+        EnsurePendingCropExists();
+        if (_pendingCropRect is null)
+            return;
+
+        int baseW = Math.Max(1, _previewPixelWidth);
+        int baseH = Math.Max(1, _previewPixelHeight);
+        var r = _pendingCropRect;
+        int curW = Math.Max(1, (int)Math.Round(r.Width * baseW));
+        int curH = Math.Max(1, (int)Math.Round(r.Height * baseH));
+        int newW = Math.Clamp(curW + deltaWidthPx, 1, baseW);
+        int newH = Math.Clamp(curH + deltaHeightPx, 1, baseH);
+        double nw = newW / (double)baseW;
+        double nh = newH / (double)baseH;
+        double left = r.Left + (r.Width - nw) / 2;
+        double top = r.Top + (r.Height - nh) / 2;
+        _pendingCropRect = ClampNormRect(left, top, nw, nh);
+        RefreshPendingCropOverlay();
+        UpdateCropUi();
+    }
+
+    private void AlignPending(string? h = null, string? v = null)
+    {
+        if (_pendingCropRect is null)
+            return;
+        var r = _pendingCropRect;
+        double left = r.Left;
+        double top = r.Top;
+        if (h == "left") left = 0;
+        else if (h == "center") left = (1 - r.Width) / 2;
+        else if (h == "right") left = 1 - r.Width;
+        if (v == "top") top = 0;
+        else if (v == "center") top = (1 - r.Height) / 2;
+        else if (v == "bottom") top = 1 - r.Height;
+        _pendingCropRect = ClampNormRect(left, top, r.Width, r.Height);
+        RefreshPendingCropOverlay();
+        UpdateCropUi();
+    }
+
+    private string HitTestPendingHandle(Point pos)
+    {
+        if (_pendingCropRect is null || !TryGetLetterboxMapping(out _, out var rw, out var rh, out var ox, out var oy))
+            return "";
+
+        double l = ox + _pendingCropRect.Left * rw;
+        double t = oy + _pendingCropRect.Top * rh;
+        double r = l + _pendingCropRect.Width * rw;
+        double b = t + _pendingCropRect.Height * rh;
+        const double hs = 10;
+        bool nearL = Math.Abs(pos.X - l) <= hs;
+        bool nearR = Math.Abs(pos.X - r) <= hs;
+        bool nearT = Math.Abs(pos.Y - t) <= hs;
+        bool nearB = Math.Abs(pos.Y - b) <= hs;
+        bool inX = pos.X >= l - hs && pos.X <= r + hs;
+        bool inY = pos.Y >= t - hs && pos.Y <= b + hs;
+
+        if (nearT && nearL) return "nw";
+        if (nearT && nearR) return "ne";
+        if (nearB && nearL) return "sw";
+        if (nearB && nearR) return "se";
+        if (nearT && inX) return "n";
+        if (nearB && inX) return "s";
+        if (nearL && inY) return "w";
+        if (nearR && inY) return "e";
+        if (pos.X >= l && pos.X <= r && pos.Y >= t && pos.Y <= b) return "move";
+        return "";
+    }
+
+    private void LivePreviewImage_MouseMove(object sender, MouseEventArgs e)
+    {
+        var pos = e.GetPosition(LivePreviewImage);
+
+        if (IsCloneStampMode && !_isCropping && _eyedropperColorField is null)
+        {
+            if (TryPointToNorm(pos, out double hnx, out double hny))
+            {
+                _cloneHoverNorm = new Point(hnx, hny);
+                if (_clonePainting && _cloneSourceNorm is not null && !_clonePickSourceNext)
+                    StampCloneAt(new Point(hnx, hny), deferPreview: true);
+                RefreshCloneOverlay();
+            }
+            LivePreviewImage.Cursor = Cursors.Cross;
+            return;
+        }
+
+        if (!_isCropping)
+        {
+            if (IsCropModeEnabled && _eyedropperColorField is null)
+            {
+                string hit = HitTestPendingHandle(pos);
+                LivePreviewImage.Cursor = hit switch
+                {
+                    "nw" or "se" => Cursors.SizeNWSE,
+                    "ne" or "sw" => Cursors.SizeNESW,
+                    "n" or "s" => Cursors.SizeNS,
+                    "e" or "w" => Cursors.SizeWE,
+                    "move" => Cursors.SizeAll,
+                    _ => Cursors.Cross
+                };
+            }
+            return;
+        }
+
+        if (_cropDragMode == "create")
+        {
+            if (TryComputeNormRectFromPoints(_cropDragStart, pos, out var rect))
+            {
+                _pendingCropRect = rect;
+                RefreshPendingCropOverlay();
+                SyncCropPxBoxesFromPending();
+            }
+            return;
+        }
+
+        if (_cropRectAtDragStart is null || !TryPointToNorm(pos, out var nx, out var ny) || !TryPointToNorm(_cropDragStart, out var sx, out var sy))
+            return;
+
+        double dx = nx - sx;
+        double dy = ny - sy;
+        var o = _cropRectAtDragStart;
+
+        if (_cropDragMode == "move")
+        {
+            _pendingCropRect = ClampNormRect(o.Left + dx, o.Top + dy, o.Width, o.Height);
+        }
+        else if (_cropDragMode == "resize")
+        {
+            double left = o.Left, top = o.Top, right = o.Left + o.Width, bottom = o.Top + o.Height;
+            switch (_cropResizeHandle)
+            {
+                case "nw": left = o.Left + dx; top = o.Top + dy; break;
+                case "ne": right = o.Left + o.Width + dx; top = o.Top + dy; break;
+                case "sw": left = o.Left + dx; bottom = o.Top + o.Height + dy; break;
+                case "se": right = o.Left + o.Width + dx; bottom = o.Top + o.Height + dy; break;
+                case "n": top = o.Top + dy; break;
+                case "s": bottom = o.Top + o.Height + dy; break;
+                case "w": left = o.Left + dx; break;
+                case "e": right = o.Left + o.Width + dx; break;
+            }
+            double l = Math.Min(left, right);
+            double t = Math.Min(top, bottom);
+            double w = Math.Abs(right - left);
+            double h = Math.Abs(bottom - top);
+            _pendingCropRect = ClampNormRect(l, t, w, h);
+        }
+
+        RefreshPendingCropOverlay();
+        SyncCropPxBoxesFromPending();
+        if (CropApplyButton is not null)
+            CropApplyButton.IsEnabled = _pendingCropRect is not null;
+    }
+
+    private void LivePreviewImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_clonePainting)
+        {
+            _clonePainting = false;
+            if (LivePreviewImage.IsMouseCaptured)
+                LivePreviewImage.ReleaseMouseCapture();
+            ScheduleLivePreview();
+            e.Handled = true;
+            return;
+        }
+
+        if (!_isCropping)
+            return;
+
+        CancelCropDrag();
+        UpdateCropUi();
+        RefreshPendingCropOverlay();
+        e.Handled = true;
+    }
+
+    private void LivePreviewImage_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (IsCloneStampMode && _eyedropperColorField is null)
+        {
+            var rpos = e.GetPosition(LivePreviewImage);
+            if (TryPointToNorm(rpos, out double rnx, out double rny))
+                SetCloneSource(new Point(rnx, rny));
+            e.Handled = true;
+            return;
+        }
+
+        if (!(_pinSelectMode || PinSelectModeToggle?.IsChecked == true))
+            return;
+        if (_selectionPins.Count == 0)
+            return;
+
+        _selectionPins.RemoveAt(_selectionPins.Count - 1);
+        if (_selectionPins.Count == 0)
+        {
+            RefreshPinOverlay();
+            RefreshPinButtonsUi();
+            UpdateCropUi();
+        }
+        else
+        {
+            ApplyPinsToPendingSelection();
+            RefreshPinOverlay();
+            RefreshPinButtonsUi();
+            UpdateCropUi();
+        }
+        e.Handled = true;
     }
 
     private void LivePreviewImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (IsCloneStampMode && _eyedropperColorField is null)
+        {
+            if (LivePreviewImage.Source is not BitmapSource)
+            {
+                MessageBox.Show("Önizleme görseli hazır değil.", "Klon damga",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            CancelEyedropper();
+            CancelCropDrag();
+            var cpos = e.GetPosition(LivePreviewImage);
+            if (!TryPointToNorm(cpos, out double cnx, out double cny))
+            {
+                e.Handled = true;
+                return;
+            }
+            bool pickSource = _clonePickSourceNext
+                              || _cloneSourceNorm is null
+                              || (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+            if (pickSource)
+            {
+                SetCloneSource(new Point(cnx, cny));
+            }
+            else
+            {
+                _clonePainting = true;
+                _cloneLastStampNorm = null;
+                LivePreviewImage.CaptureMouse();
+                StampCloneAt(new Point(cnx, cny), deferPreview: true);
+            }
+            e.Handled = true;
+            return;
+        }
+
+        if (_pinSelectMode && _eyedropperColorField is null)
+        {
+            if (LivePreviewImage.Source is not BitmapSource)
+            {
+                MessageBox.Show(
+                    "Önizleme görseli hazır değil.",
+                    "Pin seçim",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            CancelEyedropper();
+            CancelCropDrag();
+            var pinPos = e.GetPosition(LivePreviewImage);
+            if (TryPointToNorm(pinPos, out double pnx, out double pny))
+            {
+                if (_selectionPins.Count >= MaxSelectionPins)
+                    _selectionPins.RemoveAt(0);
+                _selectionPins.Add(new Point(pnx, pny));
+                ApplyPinsToPendingSelection();
+                RefreshPinOverlay();
+                RefreshPinButtonsUi();
+                UpdateCropUi();
+            }
+            e.Handled = true;
+            return;
+        }
+
+        if (IsCropModeEnabled && _eyedropperColorField is null)
+        {
+            if (LivePreviewImage.Source is not BitmapSource)
+            {
+                MessageBox.Show(
+                    "Önizleme görseli hazır değil. Önce bir şablon ve (isteğe bağlı) kaynak klasör seçin.",
+                    "Kırp modu",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            CancelEyedropper();
+            var pos = e.GetPosition(LivePreviewImage);
+            string hit = HitTestPendingHandle(pos);
+            _cropDragStart = pos;
+            _cropRectAtDragStart = _pendingCropRect;
+            _isCropping = true;
+
+            if (hit is "nw" or "ne" or "sw" or "se" or "n" or "s" or "e" or "w")
+            {
+                _cropDragMode = "resize";
+                _cropResizeHandle = hit;
+            }
+            else if (hit == "move")
+            {
+                _cropDragMode = "move";
+                _cropResizeHandle = "";
+            }
+            else
+            {
+                _cropDragMode = "create";
+                _cropResizeHandle = "";
+                _pendingCropRect = null;
+                SetCropOverlay(null);
+            }
+
+            LivePreviewImage.CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
         if (_eyedropperColorField is null)
             return;
 
         if (LivePreviewImage.Source is not BitmapSource bitmap)
             return;
 
-        var pos = e.GetPosition(LivePreviewImage);
-        if (!PreviewColorSampler.TryPick(bitmap, LivePreviewImage, pos, out var hex))
+        var pickPos = e.GetPosition(LivePreviewImage);
+        if (!PreviewColorSampler.TryPick(bitmap, LivePreviewImage, pickPos, out var hex))
         {
             MessageBox.Show(
                 "Renk alınamadı. Görselin üzerindeki bir noktaya tıklayın.",
@@ -2200,10 +3582,41 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && _isCropping)
+        {
+            CancelCropDrag();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape && _eyedropperColorField is not null)
         {
             CancelEyedropper();
             e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            if (e.Key is Key.D0 or Key.NumPad0)
+            {
+                ResetPreviewZoom();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key is Key.OemPlus or Key.Add)
+            {
+                ZoomPreviewBy(PreviewZoomStep);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key is Key.OemMinus or Key.Subtract)
+            {
+                ZoomPreviewBy(1.0 / PreviewZoomStep);
+                e.Handled = true;
+            }
         }
     }
 
@@ -2352,10 +3765,11 @@ public partial class MainWindow : Window
         _previewCts?.Dispose();
         _previewCts = new CancellationTokenSource();
         var token = _previewCts.Token;
-        _ = RefreshLivePreviewAsync(token);
+        int generation = Interlocked.Increment(ref _previewGeneration);
+        _ = RefreshLivePreviewAsync(token, generation);
     }
 
-    private async Task RefreshLivePreviewAsync(CancellationToken ct)
+    private async Task RefreshLivePreviewAsync(CancellationToken ct, int generation)
     {
         LivePreviewResult result;
         try
@@ -2383,15 +3797,26 @@ public partial class MainWindow : Window
                     template, theme, themeColors, logo, imageBrand, exportProfile, job, sampleFile),
                 ct);
 
-            if (ct.IsCancellationRequested)
+            if (ct.IsCancellationRequested || generation != _previewGeneration)
                 return;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
         }
         catch (Exception ex)
         {
+            if (ct.IsCancellationRequested || generation != _previewGeneration)
+                return;
             result = new LivePreviewResult(null, "", "Önizleme hatası", false, ex.Message);
         }
 
-        await Dispatcher.InvokeAsync(() => ApplyLivePreviewResult(result), System.Windows.Threading.DispatcherPriority.Normal);
+        await Dispatcher.InvokeAsync(() =>
+        {
+            if (generation != _previewGeneration)
+                return;
+            ApplyLivePreviewResult(result);
+        }, System.Windows.Threading.DispatcherPriority.Normal);
     }
 
     private IProductTemplate ResolvePreviewTemplate()
@@ -2399,7 +3824,7 @@ public partial class MainWindow : Window
         if (TemplateCombo.SelectedItem is TemplateListItem item)
             return item.Template;
 
-        return TemplateRegistry.GetById("white-studio")
+        return TemplateRegistry.GetById("sablon-yok")
                ?? TemplateRegistry.Templates.First(t => !t.IsPassthrough);
     }
 
@@ -2425,11 +3850,24 @@ public partial class MainWindow : Window
             LivePreviewImage.Visibility = Visibility.Visible;
             PreviewPlaceholderText.Visibility = Visibility.Collapsed;
             PreviewErrorText.Visibility = Visibility.Collapsed;
+            _previewPixelWidth = result.OutputWidth;
+            _previewPixelHeight = result.OutputHeight;
+            UpdatePreviewZoomHostSize();
+            RefreshPreviewZoomUi();
+            Dispatcher.BeginInvoke(() =>
+            {
+                RefreshPendingCropOverlay();
+                RefreshPinOverlay();
+                RefreshCloneOverlay();
+            }, System.Windows.Threading.DispatcherPriority.Loaded);
+            SyncCropPxBoxesFromPending();
         }
         else
         {
             LivePreviewImage.Source = null;
             LivePreviewImage.Visibility = Visibility.Collapsed;
+            _previewPixelWidth = 0;
+            _previewPixelHeight = 0;
             PreviewPlaceholderText.Visibility = Visibility.Visible;
             PreviewPlaceholderText.Text = result.ErrorMessage is not null
                 ? "Önizleme oluşturulamadı"
@@ -2741,7 +4179,12 @@ public partial class MainWindow : Window
             FileNamePattern = baseJob.FileNamePattern,
             TextOverlay = baseJob.TextOverlay,
             SamplePreviewCount = baseJob.SamplePreviewCount,
-            ProcessOnlySelectedFiles = false
+            ProcessOnlySelectedFiles = false,
+            CropRect = baseJob.CropRect,
+            CropOnlySelectedFiles = baseJob.CropOnlySelectedFiles,
+            CropSelectedFilePaths = baseJob.CropSelectedFilePaths,
+            WatermarkCleanOps = baseJob.WatermarkCleanOps,
+            TextureCloneOps = baseJob.TextureCloneOps
         };
         var colorTheme = BuildColorTheme();
         var themeColors = BuildThemeColorSet();
@@ -2993,6 +4436,8 @@ public partial class MainWindow : Window
         }
         ResizeOnlyCheck.IsEnabled = !busy;
         JpegQualitySlider.IsEnabled = !busy;
+        if (OutputFormatCombo is not null)
+            OutputFormatCombo.IsEnabled = !busy;
         SaveAsPngCheck.IsEnabled = !busy;
         OutputFileNameBox.IsEnabled = !busy;
         TextOverlayEnabledCheck.IsEnabled = !busy;
@@ -3011,3 +4456,5 @@ public partial class MainWindow : Window
             RefreshLogoModeUi();
     }
 }
+
+internal sealed record FiligramStyleItem(string Name, RonekaiImageFramer.Models.WatermarkCleanStyle Style);

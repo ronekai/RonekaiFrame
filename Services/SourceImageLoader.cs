@@ -4,31 +4,40 @@ using SixLabors.ImageSharp.Processing;
 
 namespace RonekaiImageFramer.Services;
 
-/// <summary>Kaynak dosyayı ImageSharp <see cref="Image{Rgba32}"/> olarak yükler (HEIC/HEIF dahil).</summary>
+/// <summary>Kaynak dosyayi ImageSharp Image{Rgba32} olarak yukler (PNG/JPEG/WEBP/AVIF/HEIC/SVG dahil).</summary>
 public static class SourceImageLoader
 {
     public static Image<Rgba32> Load(string filePath)
     {
         if (!File.Exists(filePath))
-            throw new FileNotFoundException("Dosya bulunamadı.", filePath);
+            throw new FileNotFoundException("Dosya bulunamadi.", filePath);
 
         long fileLength = new FileInfo(filePath).Length;
         if (fileLength == 0)
-            throw new InvalidOperationException($"Dosya boş: {Path.GetFileName(filePath)}");
+            throw new InvalidOperationException($"Dosya bos: {Path.GetFileName(filePath)}");
 
         var ext = Path.GetExtension(filePath);
 
-        if (ImageInputCatalog.IsHeifFile(filePath) || ImageInputCatalog.IsHeifAliasExtension(ext))
-            return LoadHeifPath(filePath);
+        if (ImageInputCatalog.IsSvgExtension(ext))
+            return SvgRasterizer.Load(filePath);
 
-        if (ImageInputCatalog.LooksLikeHeifContainer(filePath))
-            return HeifDecoder.Load(filePath);
+        if (ImageInputCatalog.IsAvifFile(filePath)
+            || ImageInputCatalog.IsHeifFile(filePath)
+            || ImageInputCatalog.IsHeifAliasExtension(ext)
+            || ImageInputCatalog.LooksLikeAvif(filePath)
+            || ImageInputCatalog.LooksLikeHeifContainer(filePath))
+        {
+            return LoadHeifFamily(filePath);
+        }
 
         try
         {
             return LoadRaster(filePath);
         }
-        catch (Exception imageSharpEx) when (ShouldTryWpfFallback(imageSharpEx))
+        catch (Exception imageSharpEx) when (
+            ShouldTryWpfFallback(imageSharpEx)
+            || ImageInputCatalog.IsPngExtension(ext)
+            || ImageInputCatalog.IsWebRasterExtension(ext))
         {
             try
             {
@@ -36,30 +45,42 @@ public static class SourceImageLoader
             }
             catch (Exception wpfEx)
             {
+                // WEBP/AVIF WPF'de yoksa HEIF ailesi denensin
+                if (ImageInputCatalog.LooksLikeHeifContainer(filePath)
+                    || ImageInputCatalog.IsAvifExtension(ext))
+                {
+                    try
+                    {
+                        return HeifDecoder.Load(filePath);
+                    }
+                    catch (Exception heifEx)
+                    {
+                        throw CreateLoadException(filePath, fileLength, ext, imageSharpEx,
+                            new AggregateException(wpfEx, heifEx));
+                    }
+                }
+
                 throw CreateLoadException(filePath, fileLength, ext, imageSharpEx, wpfEx);
             }
         }
     }
 
-    private static Image<Rgba32> LoadHeifPath(string filePath)
+    private static Image<Rgba32> LoadHeifFamily(string filePath)
     {
-        if (ImageInputCatalog.LooksLikeHeifContainer(filePath) || ImageInputCatalog.IsHeifFile(filePath))
-            return HeifDecoder.Load(filePath);
-
         try
         {
-            return LoadRaster(filePath);
+            return HeifDecoder.Load(filePath);
         }
-        catch (Exception rasterEx) when (ShouldTryWpfFallback(rasterEx))
+        catch (Exception heifEx)
         {
             try
             {
-                return HeifDecoder.Load(filePath);
+                return LoadRaster(filePath);
             }
-            catch (Exception heifEx)
+            catch (Exception rasterEx)
             {
                 long len = new FileInfo(filePath).Length;
-                throw CreateLoadException(filePath, len, Path.GetExtension(filePath), rasterEx, heifEx);
+                throw CreateLoadException(filePath, len, Path.GetExtension(filePath), heifEx, rasterEx);
             }
         }
     }
@@ -79,7 +100,10 @@ public static class SourceImageLoader
         var message = ex.Message;
         return message.Contains("decoders", StringComparison.OrdinalIgnoreCase)
                || message.Contains("cannot be loaded", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("not recognized", StringComparison.OrdinalIgnoreCase);
+               || message.Contains("not recognized", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("png", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("webp", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("avif", StringComparison.OrdinalIgnoreCase);
     }
 
     private static InvalidOperationException CreateLoadException(
@@ -92,21 +116,24 @@ public static class SourceImageLoader
         string name = Path.GetFileName(filePath);
         string detected = ImageInputCatalog.DescribeDetectedFormat(filePath, fileLength);
         string sizeHint = fileLength < 4096
-            ? $"{fileLength} bayt — muhtemelen küçük önizleme/bozuk kopya"
+            ? $"{fileLength} bayt - muhtemelen kucuk onizleme/bozuk kopya"
             : $"{fileLength / 1024.0:0.#} KB";
 
-        string extensionHint = ImageInputCatalog.IsJpegExtension(extension) && detected != "JPEG"
-            ? "\n\nUzantı .jpg görünüyor ancak dosya içeriği JPEG değil. " +
-              "OneDrive/iCloud eşitlemesi tamamlanmamış veya yanlış dosya kopyalanmış olabilir. " +
-              "Orijinal fotoğrafı klasöre yeniden kopyalayın."
-            : detected == "JPEG"
-                ? "\n\nDosya JPEG görünüyor ancak okunamadı — dosya bozuk olabilir."
-                : string.Empty;
+        string extensionHint =
+            ImageInputCatalog.IsJpegExtension(extension) && detected != "JPEG"
+                ? "\n\nUzanti .jpg gorunuyor ancak dosya icerigi JPEG degil."
+                : ImageInputCatalog.IsPngExtension(extension) && detected != "PNG"
+                    ? "\n\nUzanti .png gorunuyor ancak dosya icerigi PNG degil."
+                    : ImageInputCatalog.IsAvifExtension(extension)
+                        ? "\n\nAVIF dosyasi okunamadi. libheif veya Windows AV1/HEIF eklentilerini kontrol edin."
+                        : detected is "JPEG" or "PNG" or "WEBP" or "AVIF"
+                            ? $"\n\nDosya {detected} gorunuyor ancak okunamadi - dosya bozuk olabilir."
+                            : string.Empty;
 
         string message =
-            $"Görsel açılamadı: {name}\n" +
+            $"Gorsel acilamadi: {name}\n" +
             $"Boyut: {sizeHint}\n" +
-            $"Tespit edilen içerik: {detected}" +
+            $"Tespit edilen icerik: {detected}" +
             extensionHint;
 
         return new InvalidOperationException(message, new AggregateException(primaryEx, fallbackEx));

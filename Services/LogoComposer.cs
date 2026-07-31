@@ -84,21 +84,22 @@ public static class LogoComposer
 
     private static void ApplyFrame(Image<Rgba32> canvas, Image<Rgba32> logo, float opacity)
     {
-        int bandHeight = Math.Max(48, (int)(canvas.Height * 0.13));
-        int topY = LogoPlacementContext.Top;
-        int bottomY = canvas.Height - bandHeight - LogoPlacementContext.Bottom;
+        // Çerçeve logoları kenara yaslanır; marka rezervi üst/altı kaydırmasın / taşırmasın
+        int bandHeight = Math.Max(40, Math.Min(120, (int)(canvas.Height * 0.10)));
 
         using var topLogo = ResizeFitWidth(logo, canvas.Width, bandHeight);
         using var bottomLogo = topLogo.CloneAs<Rgba32>();
+        int topY = 0;
+        int bottomY = Math.Max(0, canvas.Height - bottomLogo.Height);
 
         canvas.Mutate(ctx =>
         {
             ctx.DrawImage(topLogo, new ImgPoint(0, topY), opacity);
-            if (bottomY >= topY + bandHeight)
+            if (bottomY > topY)
                 ctx.DrawImage(bottomLogo, new ImgPoint(0, bottomY), opacity);
         });
 
-        int sideBandH = canvas.Height - LogoPlacementContext.Top - LogoPlacementContext.Bottom;
+        int sideBandH = canvas.Height - topLogo.Height - bottomLogo.Height;
         if (sideBandH < 48)
             return;
 
@@ -106,7 +107,7 @@ public static class LogoComposer
         int sideMargin = Math.Max(8, (int)(canvas.Width * 0.02));
         int sideXLeft = sideMargin + LogoPlacementContext.Left;
         int sideXRight = canvas.Width - sideLogo.Width - sideMargin - LogoPlacementContext.Right;
-        int sideY = LogoPlacementContext.Top;
+        int sideY = topLogo.Height;
 
         canvas.Mutate(ctx =>
         {
@@ -142,8 +143,8 @@ public static class LogoComposer
             _ => (canvas.Height - badge.Height) / 2
         };
 
-        x = Math.Clamp(x, LogoPlacementContext.Left, Math.Max(LogoPlacementContext.Left, canvas.Width - badge.Width - LogoPlacementContext.Right));
-        y = Math.Clamp(y, LogoPlacementContext.Top, Math.Max(LogoPlacementContext.Top, canvas.Height - badge.Height - LogoPlacementContext.Bottom));
+        x = Math.Clamp(x, 0, Math.Max(0, canvas.Width - badge.Width));
+        y = Math.Clamp(y, 0, Math.Max(0, canvas.Height - badge.Height));
 
         canvas.Mutate(ctx =>
         {

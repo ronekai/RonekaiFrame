@@ -29,9 +29,12 @@ public abstract class TemplateBase : IProductTemplate
     {
         using var clone = source.CloneAs<Rgba32>();
         var canvas = Render(clone);
-        if (BrandTextPlacement == TemplateBrandPlacement.Corner)
-            DrawCornerBrand(canvas);
-        ImageBrandOverlay.ApplyBrandLogo(canvas);
+        if (!BrandOverlayDeferContext.IsDeferred)
+        {
+            if (BrandTextPlacement == TemplateBrandPlacement.Corner)
+                DrawCornerBrand(canvas);
+            ImageBrandOverlay.ApplyBrandLogo(canvas);
+        }
         return canvas;
     }
 

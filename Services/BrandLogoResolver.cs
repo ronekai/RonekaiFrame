@@ -4,21 +4,29 @@ namespace RonekaiImageFramer.Services;
 
 public static class BrandLogoResolver
 {
+    /// <param name="preferPerFileOverrides">
+    /// true: dosya-başı override varsa onu kullan (seçili dosya işle modu).
+    /// false: yalnızca klasör varsayılanı — tüm klasör aynı logo/konum (checkbox kapalı).
+    /// </param>
     public static ImageBrandSettings ResolveForFile(
         string filePath,
         ImageBrandSettings global,
-        SourceFolderLogoSettings? folderSettings)
+        SourceFolderLogoSettings? folderSettings,
+        bool preferPerFileOverrides = true)
     {
         if (folderSettings is null)
             return global.Clone();
 
-        var key = NormalizePath(filePath);
         FileBrandLogoOverride? o = null;
 
-        if (folderSettings.PerFile.TryGetValue(key, out var perFile) && perFile.Enabled)
-            o = perFile;
-        else if (folderSettings.FolderDefault is { Enabled: true })
-            o = folderSettings.FolderDefault;
+        if (preferPerFileOverrides)
+        {
+            var key = NormalizePath(filePath);
+            if (folderSettings.PerFile.TryGetValue(key, out var perFile))
+                o = perFile;
+        }
+
+        o ??= folderSettings.FolderDefault;
 
         if (o is null)
             return global.Clone();
@@ -32,6 +40,7 @@ public static class BrandLogoResolver
     {
         target.ShowBrandLogo = o.Enabled;
         target.BrandLogoPath = BrandLogoCatalog.ResolvePath(o.LogoPresetId, o.LogoPath)
+                               ?? o.LogoPath
                                ?? target.BrandLogoPath;
         target.BrandLogoPresetId = o.LogoPresetId ?? BrandLogoCatalog.DetectPresetId(target.BrandLogoPath);
         target.BrandLogoSizePercent = o.SizePercent;
