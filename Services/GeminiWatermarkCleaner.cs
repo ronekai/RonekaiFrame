@@ -11,19 +11,94 @@ namespace RonekaiImageFramer.Services;
 /// </summary>
 public static class GeminiWatermarkCleaner
 {
-    public static void ApplyAll(Image<Rgba32> image, IReadOnlyList<WatermarkCleanOp> ops)
+    public static void ApplyAll(Image<Rgba32> image, IReadOnlyList<WatermarkCleanOp> ops, bool previewFast = false)
     {
         if (ops is null || ops.Count == 0)
             return;
         foreach (var op in ops)
-            Apply(image, op);
+            Apply(image, op, previewFast);
     }
 
-    public static void Apply(Image<Rgba32> image, WatermarkCleanOp op)
+    public static void Apply(Image<Rgba32> image, WatermarkCleanOp op, bool previewFast = false)
     {
+        if (op.IsBrush && op.BrushCenter is { } center)
+        {
+            ApplyBrush(image, center, op.BrushRadiusNorm, op.BrushShape, op.Style, previewFast);
+            return;
+        }
+
         if (op.Polygon is null || op.Polygon.Count == 0)
             return;
-        ApplyPolygon(image, op.Polygon, op.Style);
+        ApplyPolygon(image, op.Polygon, op.Style, previewFast);
+    }
+
+    /// <summary>Daire/kare/elips fırça maskesini çokgene çevirip temizler.</summary>
+    public static void ApplyBrush(
+        Image<Rgba32> image,
+        NormalizedPoint center,
+        double radiusNorm,
+        TextureCloneBrushShape shape,
+        WatermarkCleanStyle style,
+        bool previewFast = false)
+    {
+        if (image.Width < 8 || image.Height < 8)
+            return;
+
+        float shortEdge = Math.Min(image.Width, image.Height);
+        float radius = Math.Max(1.5f, (float)Math.Clamp(radiusNorm, 0.002, 0.35) * shortEdge);
+        float cx = (float)(Math.Clamp(center.X, 0, 1) * (image.Width - 1));
+        float cy = (float)(Math.Clamp(center.Y, 0, 1) * (image.Height - 1));
+
+        // Şekli kapalı çokgen olarak örnekle (cleaner mevcut çokgen yolunu kullanır)
+        int samples = shape is TextureCloneBrushShape.Square or TextureCloneBrushShape.Normal ? 4 : 32;
+        var poly = new List<NormalizedPoint>(samples);
+        if (shape is TextureCloneBrushShape.Square or TextureCloneBrushShape.Normal)
+        {
+            float r = radius;
+            poly.Add(Norm(image, cx - r, cy - r));
+            poly.Add(Norm(image, cx + r, cy - r));
+            poly.Add(Norm(image, cx + r, cy + r));
+            poly.Add(Norm(image, cx - r, cy + r));
+        }
+        else
+        {
+            for (int i = 0; i < samples; i++)
+            {
+                float t = i / (float)samples * MathF.PI * 2f;
+                float dx, dy;
+                if (shape == TextureCloneBrushShape.Ellipse)
+                {
+                    dx = MathF.Cos(t) * radius;
+                    dy = MathF.Sin(t) * radius * 0.62f;
+                }
+                else if (shape == TextureCloneBrushShape.SoftSquare)
+                {
+                    // Superellipse n=4 örnekleme
+                    float c = MathF.Cos(t);
+                    float s = MathF.Sin(t);
+                    float ax = MathF.Pow(MathF.Abs(c), 0.5f) * MathF.Sign(c);
+                    float ay = MathF.Pow(MathF.Abs(s), 0.5f) * MathF.Sign(s);
+                    dx = ax * radius;
+                    dy = ay * radius;
+                }
+                else
+                {
+                    dx = MathF.Cos(t) * radius;
+                    dy = MathF.Sin(t) * radius;
+                }
+
+                poly.Add(Norm(image, cx + dx, cy + dy));
+            }
+        }
+
+        ApplyPolygon(image, poly, style, previewFast);
+    }
+
+    private static NormalizedPoint Norm(Image<Rgba32> image, float x, float y)
+    {
+        double nx = image.Width <= 1 ? 0 : Math.Clamp(x / (image.Width - 1), 0, 1);
+        double ny = image.Height <= 1 ? 0 : Math.Clamp(y / (image.Height - 1), 0, 1);
+        return new NormalizedPoint(nx, ny);
     }
 
     public static void Apply(
@@ -38,13 +113,14 @@ public static class GeminiWatermarkCleaner
             new(region.Left + region.Width, region.Top + region.Height),
             new(region.Left, region.Top + region.Height)
         ];
-        ApplyPolygon(image, poly, style);
+        ApplyPolygon(image, poly, style, previewFast: false);
     }
 
     public static void ApplyPolygon(
         Image<Rgba32> image,
         IReadOnlyList<NormalizedPoint> polygon,
-        WatermarkCleanStyle style = WatermarkCleanStyle.Cloud)
+        WatermarkCleanStyle style = WatermarkCleanStyle.Cloud,
+        bool previewFast = false)
     {
         if (image.Width < 8 || image.Height < 8 || polygon.Count == 0)
             return;
@@ -71,17 +147,17 @@ public static class GeminiWatermarkCleaner
             maxY += lineHalf * 2;
         }
 
-        bool cloud = style == WatermarkCleanStyle.Cloud;
-        float outerFeather = cloud
-            ? Math.Max(18f, Math.Min(imgW, imgH) * 0.045f)
-            : Math.Max(2f, Math.Min(imgW, imgH) * 0.004f);
-        float innerSoft = cloud
-            ? Math.Max(14f, Math.Min(maxX - minX, maxY - minY) * 0.45f)
-            : Math.Max(1f, Math.Min(imgW, imgH) * 0.002f);
+        var tune = GetStyleTune(style);
+        float shortEdge = Math.Min(imgW, imgH);
+        float regionShort = Math.Max(1f, Math.Min(maxX - minX, maxY - minY));
+        float outerFeather = Math.Max(tune.OuterFeatherMin, shortEdge * tune.OuterFeatherEdgeFrac);
+        float innerSoft = tune.InnerFromRegion
+            ? Math.Max(tune.InnerSoftMin, regionShort * tune.InnerSoftRegionFrac)
+            : Math.Max(tune.InnerSoftMin, shortEdge * tune.InnerSoftEdgeFrac);
 
         // Dış halka: filigram kenarından biraz uzak, gerçek zeminden örnekle
         float ringInner = Math.Max(2f, outerFeather * 0.25f);
-        float ringOuter = Math.Max(ringInner + 4f, outerFeather * (cloud ? 2.2f : 1.4f));
+        float ringOuter = Math.Max(ringInner + 4f, outerFeather * tune.RingOuterMul);
 
         int pad = (int)Math.Ceiling(Math.Max(ringOuter, lineHalf)) + 10;
         int x0 = Math.Clamp((int)Math.Floor(minX) - pad, 0, imgW - 1);
@@ -125,6 +201,9 @@ public static class GeminiWatermarkCleaner
 
                     if (!isIn && edgeDist[i] >= ringInner && edgeDist[i] <= ringOuter)
                     {
+                        // Önizlemede halkayı seyrelt — IDW maliyetini düşür
+                        if (previewFast && ((x + y) & 1) != 0)
+                            continue;
                         ring.Add((x + 0.5f, y + 0.5f, px.R, px.G, px.B, px.A));
                     }
                 }
@@ -145,6 +224,16 @@ public static class GeminiWatermarkCleaner
 
         if (ring.Count == 0)
             return;
+
+        // IDW maliyetini düşür — çok kalabalık halkayı seyrelt
+        if (ring.Count > 160)
+        {
+            int step = Math.Max(1, ring.Count / 160);
+            var thinned = new List<(float x, float y, float r, float g, float b, float a)>(160);
+            for (int i = 0; i < ring.Count; i += step)
+                thinned.Add(ring[i]);
+            ring = thinned;
+        }
 
         // Robust ortalama (medyan) — tek düz renk yedek
         float meanR = Median(ring.Select(s => s.r));
@@ -183,16 +272,19 @@ public static class GeminiWatermarkCleaner
         }
 
         // 2) Kenardan içeri Laplace yayılım — gradientli zemini sürdürür
-        int diffusePasses = cloud
-            ? Math.Clamp(Math.Max(rw, rh) / 2, 24, 120)
-            : Math.Clamp(Math.Max(rw, rh) / 4, 12, 64);
+        int side = Math.Max(rw, rh);
+        int diffusePasses = previewFast
+            ? Math.Clamp(side / tune.DiffusePreviewDiv, tune.DiffusePreviewMin, tune.DiffusePreviewMax)
+            : Math.Clamp(side / tune.DiffuseExportDiv, tune.DiffuseExportMin, tune.DiffuseExportMax);
         DiffuseInterior(bufR, bufG, bufB, bufA, inside, rw, rh, diffusePasses);
 
-        // 3) Bulut: yumuşak duman geçişi
-        int blurPasses = cloud ? Math.Clamp(Math.Max(rw, rh) / 8, 12, 48) : 2;
+        // 3) Bulanık / duman geçişi
+        int blurPasses = previewFast
+            ? Math.Clamp(side / tune.BlurPreviewDiv, tune.BlurPreviewMin, tune.BlurPreviewMax)
+            : Math.Clamp(side / tune.BlurExportDiv, tune.BlurExportMin, tune.BlurExportMax);
         BoxBlur(bufR, bufG, bufB, bufA, rw, rh, blurPasses);
 
-        if (cloud)
+        if (tune.SoftFeatherPass)
         {
             for (int i = 0; i < n; i++)
             {
@@ -204,7 +296,7 @@ public static class GeminiWatermarkCleaner
                 bufB[i] = bufB[i] * (1f - keep) + srcB[i] * keep;
                 bufA[i] = bufA[i] * (1f - keep) + srcA[i] * keep;
             }
-            BoxBlur(bufR, bufG, bufB, bufA, rw, rh, Math.Max(4, blurPasses / 3));
+            BoxBlur(bufR, bufG, bufB, bufA, rw, rh, previewFast ? Math.Max(2, blurPasses / 2) : Math.Max(3, blurPasses / 3));
         }
 
         image.ProcessPixelRows(accessor =>
@@ -219,15 +311,15 @@ public static class GeminiWatermarkCleaner
                     float t = (signed + outerFeather) / (outerFeather + innerSoft);
                     float blend = SoftStep(Math.Clamp(t, 0f, 1f));
 
-                    if (cloud)
+                    if (tune.ExtraSmoothBlend)
                         blend = blend * blend * (3f - 2f * blend);
 
                     if (blend < 0.01f)
                         continue;
 
-                    if (!cloud && inside[i])
+                    if (tune.HardInsideBoost && inside[i])
                         blend = Math.Max(blend, 0.92f);
-                    if (!cloud && !inside[i] && blend < 0.15f)
+                    if (tune.HardInsideBoost && !inside[i] && blend < 0.15f)
                         continue;
 
                     ref var p = ref row[x0 + x];
@@ -239,6 +331,104 @@ public static class GeminiWatermarkCleaner
             }
         });
     }
+
+    private readonly record struct StyleTune(
+        float OuterFeatherMin,
+        float OuterFeatherEdgeFrac,
+        float InnerSoftMin,
+        float InnerSoftRegionFrac,
+        float InnerSoftEdgeFrac,
+        bool InnerFromRegion,
+        float RingOuterMul,
+        int DiffusePreviewDiv,
+        int DiffuseExportDiv,
+        int DiffusePreviewMin,
+        int DiffusePreviewMax,
+        int DiffuseExportMin,
+        int DiffuseExportMax,
+        int BlurPreviewDiv,
+        int BlurExportDiv,
+        int BlurPreviewMin,
+        int BlurPreviewMax,
+        int BlurExportMin,
+        int BlurExportMax,
+        bool SoftFeatherPass,
+        bool HardInsideBoost,
+        bool ExtraSmoothBlend);
+
+    private static StyleTune GetStyleTune(WatermarkCleanStyle style) => style switch
+    {
+        WatermarkCleanStyle.Block => new(
+            OuterFeatherMin: 2f, OuterFeatherEdgeFrac: 0.004f,
+            InnerSoftMin: 1f, InnerSoftRegionFrac: 0, InnerSoftEdgeFrac: 0.002f, InnerFromRegion: false,
+            RingOuterMul: 1.4f,
+            DiffusePreviewDiv: 8, DiffuseExportDiv: 5,
+            DiffusePreviewMin: 4, DiffusePreviewMax: 12, DiffuseExportMin: 8, DiffuseExportMax: 28,
+            BlurPreviewDiv: 999, BlurExportDiv: 999,
+            BlurPreviewMin: 1, BlurPreviewMax: 1, BlurExportMin: 2, BlurExportMax: 2,
+            SoftFeatherPass: false, HardInsideBoost: true, ExtraSmoothBlend: false),
+
+        WatermarkCleanStyle.SharpEdge => new(
+            OuterFeatherMin: 1f, OuterFeatherEdgeFrac: 0.002f,
+            InnerSoftMin: 1f, InnerSoftRegionFrac: 0, InnerSoftEdgeFrac: 0.001f, InnerFromRegion: false,
+            RingOuterMul: 1.2f,
+            DiffusePreviewDiv: 10, DiffuseExportDiv: 6,
+            DiffusePreviewMin: 3, DiffusePreviewMax: 10, DiffuseExportMin: 6, DiffuseExportMax: 20,
+            BlurPreviewDiv: 999, BlurExportDiv: 999,
+            BlurPreviewMin: 0, BlurPreviewMax: 1, BlurExportMin: 1, BlurExportMax: 1,
+            SoftFeatherPass: false, HardInsideBoost: true, ExtraSmoothBlend: false),
+
+        WatermarkCleanStyle.TextureFill => new(
+            OuterFeatherMin: 6f, OuterFeatherEdgeFrac: 0.012f,
+            InnerSoftMin: 4f, InnerSoftRegionFrac: 0.18f, InnerSoftEdgeFrac: 0, InnerFromRegion: true,
+            RingOuterMul: 2.6f,
+            DiffusePreviewDiv: 10, DiffuseExportDiv: 6,
+            DiffusePreviewMin: 4, DiffusePreviewMax: 14, DiffuseExportMin: 8, DiffuseExportMax: 24,
+            BlurPreviewDiv: 40, BlurExportDiv: 28,
+            BlurPreviewMin: 1, BlurPreviewMax: 3, BlurExportMin: 2, BlurExportMax: 5,
+            SoftFeatherPass: false, HardInsideBoost: false, ExtraSmoothBlend: false),
+
+        WatermarkCleanStyle.SoftHeal => new(
+            OuterFeatherMin: 22f, OuterFeatherEdgeFrac: 0.055f,
+            InnerSoftMin: 16f, InnerSoftRegionFrac: 0.55f, InnerSoftEdgeFrac: 0, InnerFromRegion: true,
+            RingOuterMul: 2.5f,
+            DiffusePreviewDiv: 5, DiffuseExportDiv: 2,
+            DiffusePreviewMin: 8, DiffusePreviewMax: 28, DiffuseExportMin: 14, DiffuseExportMax: 56,
+            BlurPreviewDiv: 14, BlurExportDiv: 8,
+            BlurPreviewMin: 4, BlurPreviewMax: 12, BlurExportMin: 8, BlurExportMax: 24,
+            SoftFeatherPass: true, HardInsideBoost: false, ExtraSmoothBlend: true),
+
+        WatermarkCleanStyle.DeepBlur => new(
+            OuterFeatherMin: 28f, OuterFeatherEdgeFrac: 0.07f,
+            InnerSoftMin: 20f, InnerSoftRegionFrac: 0.65f, InnerSoftEdgeFrac: 0, InnerFromRegion: true,
+            RingOuterMul: 2.8f,
+            DiffusePreviewDiv: 4, DiffuseExportDiv: 2,
+            DiffusePreviewMin: 10, DiffusePreviewMax: 32, DiffuseExportMin: 16, DiffuseExportMax: 64,
+            BlurPreviewDiv: 10, BlurExportDiv: 6,
+            BlurPreviewMin: 6, BlurPreviewMax: 16, BlurExportMin: 10, BlurExportMax: 28,
+            SoftFeatherPass: true, HardInsideBoost: false, ExtraSmoothBlend: true),
+
+        WatermarkCleanStyle.Seamless => new(
+            OuterFeatherMin: 16f, OuterFeatherEdgeFrac: 0.04f,
+            InnerSoftMin: 12f, InnerSoftRegionFrac: 0.4f, InnerSoftEdgeFrac: 0, InnerFromRegion: true,
+            RingOuterMul: 2.4f,
+            DiffusePreviewDiv: 6, DiffuseExportDiv: 3,
+            DiffusePreviewMin: 6, DiffusePreviewMax: 24, DiffuseExportMin: 12, DiffuseExportMax: 48,
+            BlurPreviewDiv: 14, BlurExportDiv: 9,
+            BlurPreviewMin: 3, BlurPreviewMax: 10, BlurExportMin: 6, BlurExportMax: 18,
+            SoftFeatherPass: true, HardInsideBoost: false, ExtraSmoothBlend: true),
+
+        // Cloud (default)
+        _ => new(
+            OuterFeatherMin: 18f, OuterFeatherEdgeFrac: 0.045f,
+            InnerSoftMin: 14f, InnerSoftRegionFrac: 0.45f, InnerSoftEdgeFrac: 0, InnerFromRegion: true,
+            RingOuterMul: 2.2f,
+            DiffusePreviewDiv: 6, DiffuseExportDiv: 3,
+            DiffusePreviewMin: 6, DiffusePreviewMax: 24, DiffuseExportMin: 12, DiffuseExportMax: 48,
+            BlurPreviewDiv: 16, BlurExportDiv: 10,
+            BlurPreviewMin: 3, BlurPreviewMax: 10, BlurExportMin: 6, BlurExportMax: 20,
+            SoftFeatherPass: true, HardInsideBoost: false, ExtraSmoothBlend: true)
+    };
 
     /// <summary>
     /// Yakındaki dış halka piksellerinden ters-mesafe ağırlıklı yerel zemin rengi.
@@ -381,6 +571,8 @@ public static class GeminiWatermarkCleaner
 
     private static void BoxBlur(float[] r, float[] g, float[] b, float[] a, int rw, int rh, int passes)
     {
+        if (passes <= 0)
+            return;
         var tr = new float[r.Length];
         var tg = new float[g.Length];
         var tb = new float[b.Length];

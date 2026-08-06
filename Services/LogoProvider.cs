@@ -5,6 +5,7 @@ namespace RonekaiImageFramer.Services;
 
 public static class LogoProvider
 {
+    private static readonly object CacheGate = new();
     private static LoadedLogo? _cache;
     private static string? _cacheSourcePath;
 
@@ -51,32 +52,38 @@ public static class LogoProvider
                 $"Logo bulunamadı. Lütfen logonuzu şuraya kopyalayın:\n{DefaultLogoPath}\n\n" +
                 "veya arayüzden 'Logo seç' ile dosyayı gösterin.");
 
-        if (_cache is not null &&
-            string.Equals(_cacheSourcePath, path, StringComparison.OrdinalIgnoreCase))
+        lock (CacheGate)
         {
+            if (_cache is not null &&
+                string.Equals(_cacheSourcePath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                return new LoadedLogo(
+                    _cache.Image.CloneAs<Rgba32>(),
+                    _cache.Kind,
+                    _cache.EffectivePath,
+                    _cache.FormatLabel);
+            }
+
+            _cache?.Dispose();
+            _cacheSourcePath = path;
+            _cache = LogoImageLoader.Load(path);
             return new LoadedLogo(
-                _cache.Image.CloneAs<Rgba32>(),
+                _cache.CloneImage(),
                 _cache.Kind,
                 _cache.EffectivePath,
                 _cache.FormatLabel);
         }
-
-        _cache?.Dispose();
-        _cacheSourcePath = path;
-        _cache = LogoImageLoader.Load(path);
-        return new LoadedLogo(
-            _cache.CloneImage(),
-            _cache.Kind,
-            _cache.EffectivePath,
-            _cache.FormatLabel);
     }
 
     public static Image<Rgba32> Load(string? customPath) => LoadDetails(customPath).CloneImage();
 
     public static void ClearCache()
     {
-        _cache?.Dispose();
-        _cache = null;
-        _cacheSourcePath = null;
+        lock (CacheGate)
+        {
+            _cache?.Dispose();
+            _cache = null;
+            _cacheSourcePath = null;
+        }
     }
 }

@@ -42,20 +42,12 @@ public partial class LoginWindow : Window
             return;
         }
 
+        // DialogResult atamak pencereyi kapatır; OnClosed içinde tekrar set etme.
         DialogResult = true;
-        Close();
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        if (DialogResult != true)
-            DialogResult = false;
-        base.OnClosed(e);
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 }

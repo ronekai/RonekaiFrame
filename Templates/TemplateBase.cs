@@ -100,6 +100,10 @@ public abstract class TemplateBase : IProductTemplate
                 Sampler = KnownResamplers.Lanczos3
             }));
             canvas.Mutate(ctx => ctx.DrawImage(resized, new ImgPoint(targetBounds.X, targetBounds.Y), 1f));
+            ProductPlacementContext.Set(
+                product.Width, product.Height,
+                canvas.Width, canvas.Height,
+                targetBounds.X, targetBounds.Y, targetBounds.Width, targetBounds.Height);
             return;
         }
 
@@ -114,6 +118,10 @@ public abstract class TemplateBase : IProductTemplate
         int posX = targetBounds.X + (targetBounds.Width - contained.Width) / 2;
         int posY = targetBounds.Y + (targetBounds.Height - contained.Height) / 2;
         canvas.Mutate(ctx => ctx.DrawImage(contained, new ImgPoint(posX, posY), 1f));
+        ProductPlacementContext.Set(
+            product.Width, product.Height,
+            canvas.Width, canvas.Height,
+            posX, posY, contained.Width, contained.Height);
     }
 
     protected static ImgSize CalculateFit(ImgSize source, ImgSize bounds)

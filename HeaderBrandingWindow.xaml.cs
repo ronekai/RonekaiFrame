@@ -103,13 +103,11 @@ public partial class HeaderBrandingWindow : Window
         ResultSettings = Clone(_working);
         HeaderBrandingStore.Save(ResultSettings);
         DialogResult = true;
-        Close();
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 
     private static HeaderBrandingSettings Clone(HeaderBrandingSettings s) => new()

@@ -9,14 +9,18 @@ namespace RonekaiImageFramer.Services;
 
 public static class BrandLogoRenderer
 {
+    private static readonly object CacheGate = new();
     private static string? _cachePath;
     private static Image<Rgba32>? _cacheImage;
 
     public static void ClearCache()
     {
-        _cacheImage?.Dispose();
-        _cacheImage = null;
-        _cachePath = null;
+        lock (CacheGate)
+        {
+            _cacheImage?.Dispose();
+            _cacheImage = null;
+            _cachePath = null;
+        }
     }
 
     public static bool ShouldDraw => ImageBrandContext.ShouldDrawBrandLogo;
@@ -74,14 +78,17 @@ public static class BrandLogoRenderer
             return null;
 
         path = Path.GetFullPath(path);
-        if (_cacheImage is not null && string.Equals(_cachePath, path, StringComparison.OrdinalIgnoreCase))
-            return _cacheImage.CloneAs<Rgba32>();
+        lock (CacheGate)
+        {
+            if (_cacheImage is not null && string.Equals(_cachePath, path, StringComparison.OrdinalIgnoreCase))
+                return _cacheImage.CloneAs<Rgba32>();
 
-        _cacheImage?.Dispose();
-        using var loaded = LogoImageLoader.Load(path);
-        _cachePath = path;
-        _cacheImage = loaded.CloneImage();
-        return _cacheImage.CloneAs<Rgba32>();
+            _cacheImage?.Dispose();
+            using var loaded = LogoImageLoader.Load(path);
+            _cachePath = path;
+            _cacheImage = loaded.CloneImage();
+            return _cacheImage.CloneAs<Rgba32>();
+        }
     }
 
     private static Image<Rgba32> ResizeLogo(Image<Rgba32> source, int maxEdge) =>

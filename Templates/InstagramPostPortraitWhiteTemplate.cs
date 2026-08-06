@@ -1,9 +1,7 @@
+using RonekaiImageFramer.Models;
 using RonekaiImageFramer.Services;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
-using ImgColor = SixLabors.ImageSharp.Color;
 using ImgSize = SixLabors.ImageSharp.Size;
 using ImgRectangle = SixLabors.ImageSharp.Rectangle;
 
@@ -17,20 +15,16 @@ public sealed class InstagramPostPortraitWhiteTemplate : TemplateBase
 
     public override string Name => "Instagram Post 1080×1350 (Beyaz)";
 
-    public override string Description => "1080×1350 dikey post. Görsel bozulmadan oturur, boşluklar beyaz ile tamamlanır.";
+    public override string Description => "1080×1350 dikey post. Görsel bozulmadan oturur; boşluklar renk paleti zemininden gelir.";
 
     public override ImgSize OutputSize => new(1080, 1350);
 
     protected override Image<Rgba32> Render(Image<Rgba32> source)
     {
         var canvas = CreateCanvas(OutputSize);
-        canvas.Mutate(ctx => ctx.Fill(ImgColor.White));
-
         int pad = 60;
         var bounds = new ImgRectangle(pad, pad, OutputSize.Width - pad * 2, OutputSize.Height - pad * 2);
-        DrawProductContained(canvas, source, bounds, ImgColor.White, fillEntireCanvas: false);
-
+        DrawProductContained(canvas, source, bounds, ThemeColorSlot.Background, fillEntireCanvas: true);
         return canvas;
     }
 }
-

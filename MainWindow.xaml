@@ -59,19 +59,167 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="Canlı önizleme" FontWeight="SemiBold" FontSize="14"
                                            Foreground="{StaticResource BrandPrimaryBrush}" VerticalAlignment="Center"/>
                                 <Border x:Name="PreviewModeBadge" Background="#1B2A4A" CornerRadius="4"
                                         Padding="8,3" VerticalAlignment="Center" Margin="10,0,0,0">
                                     <TextBlock x:Name="PreviewModeBadgeText" Text="DEMO" Foreground="White" FontWeight="Bold" FontSize="10"/>
                                 </Border>
-                                <ComboBox x:Name="FiligramCleanStyleCombo" Width="108" Height="26"
+                                <ComboBox x:Name="FiligramCleanStyleCombo" Width="138" Height="26"
                                           Margin="12,0,4,0" VerticalAlignment="Center"
-                                          ToolTip="Temizlik stili: Bulut (yumuşak) veya Blok"/>
+                                          ToolTip="Filigram temizleme stili"/>
+                                <Border BorderBrush="#C5CAD3" BorderThickness="1" CornerRadius="5"
+                                        Background="#F4F6F9" Padding="3,2" Margin="8,0,6,0"
+                                        VerticalAlignment="Center"
+                                        ToolTip="Kesit şekli — Normal = varsayılan seçim">
+                                    <StackPanel x:Name="BrushShapeBar" Orientation="Horizontal">
+                                        <RadioButton x:Name="ShapeNormalRadio" GroupName="BrushShapeGroup"
+                                                     IsChecked="True" Width="34" Height="26" Margin="1,0"
+                                                     ToolTip="Normal — varsayılan seçim"
+                                                     Checked="BrushShapeRadio_Checked" Tag="Normal">
+                                            <RadioButton.Template>
+                                                <ControlTemplate TargetType="RadioButton">
+                                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3"
+                                                            BorderBrush="#9AA3B2" BorderThickness="1" Padding="2">
+                                                        <TextBlock Text="N" FontSize="11" FontWeight="SemiBold"
+                                                                   Foreground="#3D4654" HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="Bd" Property="BorderBrush" Value="#1B2A4A"/>
+                                                            <Setter TargetName="Bd" Property="BorderThickness" Value="1.5"/>
+                                                            <Setter TargetName="Bd" Property="Background" Value="#E8EEF7"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="#EEF1F6"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </RadioButton.Template>
+                                        </RadioButton>
+                                        <RadioButton x:Name="ShapeCircleRadio" GroupName="BrushShapeGroup"
+                                                     Width="34" Height="26" Margin="1,0"
+                                                     ToolTip="Daire"
+                                                     Checked="BrushShapeRadio_Checked" Tag="Circle">
+                                            <RadioButton.Template>
+                                                <ControlTemplate TargetType="RadioButton">
+                                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3"
+                                                            BorderBrush="#9AA3B2" BorderThickness="1" Padding="4">
+                                                        <Ellipse Stroke="#1B2A4A" StrokeThickness="1.25" Fill="Transparent"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="Bd" Property="BorderBrush" Value="#1B2A4A"/>
+                                                            <Setter TargetName="Bd" Property="BorderThickness" Value="1.5"/>
+                                                            <Setter TargetName="Bd" Property="Background" Value="#E8EEF7"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="#EEF1F6"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </RadioButton.Template>
+                                        </RadioButton>
+                                        <RadioButton x:Name="ShapeSquareRadio" GroupName="BrushShapeGroup"
+                                                     Width="34" Height="26" Margin="1,0"
+                                                     ToolTip="Kare"
+                                                     Checked="BrushShapeRadio_Checked" Tag="Square">
+                                            <RadioButton.Template>
+                                                <ControlTemplate TargetType="RadioButton">
+                                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3"
+                                                            BorderBrush="#9AA3B2" BorderThickness="1" Padding="5">
+                                                        <Rectangle Stroke="#1B2A4A" StrokeThickness="1.25" Fill="Transparent"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="Bd" Property="BorderBrush" Value="#1B2A4A"/>
+                                                            <Setter TargetName="Bd" Property="BorderThickness" Value="1.5"/>
+                                                            <Setter TargetName="Bd" Property="Background" Value="#E8EEF7"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="#EEF1F6"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </RadioButton.Template>
+                                        </RadioButton>
+                                        <RadioButton x:Name="ShapeSoftSquareRadio" GroupName="BrushShapeGroup"
+                                                     Width="34" Height="26" Margin="1,0"
+                                                     ToolTip="Yumuşak kare"
+                                                     Checked="BrushShapeRadio_Checked" Tag="SoftSquare">
+                                            <RadioButton.Template>
+                                                <ControlTemplate TargetType="RadioButton">
+                                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3"
+                                                            BorderBrush="#9AA3B2" BorderThickness="1" Padding="5">
+                                                        <Rectangle Stroke="#1B2A4A" StrokeThickness="1.25" Fill="Transparent"
+                                                                   RadiusX="4" RadiusY="4"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="Bd" Property="BorderBrush" Value="#1B2A4A"/>
+                                                            <Setter TargetName="Bd" Property="BorderThickness" Value="1.5"/>
+                                                            <Setter TargetName="Bd" Property="Background" Value="#E8EEF7"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="#EEF1F6"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </RadioButton.Template>
+                                        </RadioButton>
+                                        <RadioButton x:Name="ShapeEllipseRadio" GroupName="BrushShapeGroup"
+                                                     Width="34" Height="26" Margin="1,0"
+                                                     ToolTip="Elips"
+                                                     Checked="BrushShapeRadio_Checked" Tag="Ellipse">
+                                            <RadioButton.Template>
+                                                <ControlTemplate TargetType="RadioButton">
+                                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3"
+                                                            BorderBrush="#9AA3B2" BorderThickness="1" Padding="3,6">
+                                                        <Ellipse Stroke="#1B2A4A" StrokeThickness="1.25" Fill="Transparent"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="Bd" Property="BorderBrush" Value="#1B2A4A"/>
+                                                            <Setter TargetName="Bd" Property="BorderThickness" Value="1.5"/>
+                                                            <Setter TargetName="Bd" Property="Background" Value="#E8EEF7"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="#EEF1F6"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </RadioButton.Template>
+                                        </RadioButton>
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="Boyut" VerticalAlignment="Center" FontSize="11" Margin="2,0,4,0"
+                                           Foreground="{StaticResource BrandMutedBrush}"/>
+                                <Button x:Name="CloneBrushSizeMinusButton" Content="−"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,2" MinWidth="28"
+                                        ToolTip="Küçült (≥1 → 1; &lt;1 → 0,1)"
+                                        Click="CloneBrushSizeMinus_Click"/>
+                                <TextBlock x:Name="CloneBrushSizeLabel" Text="4%"
+                                           VerticalAlignment="Center" FontSize="11" Margin="4,0,4,0"
+                                           Foreground="{StaticResource BrandMutedBrush}" MinWidth="36"
+                                           TextAlignment="Center"/>
+                                <Button x:Name="CloneBrushSizePlusButton" Content="+"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,2" MinWidth="28" Margin="0,0,4,0"
+                                        ToolTip="Büyüt (≥1 → 1; &lt;1 → 0,1)"
+                                        Click="CloneBrushSizePlus_Click"/>
+                                <Slider x:Name="CloneBrushSizeSlider" Width="72" Height="26"
+                                        Minimum="0.1" Maximum="20" Value="4" VerticalAlignment="Center"
+                                        ToolTip="Fırça boyutu (%). 1 altında 0,1; 1 ve üstünde 1 adım"
+                                        ValueChanged="CloneBrushSizeSlider_Changed"/>
+                                <ToggleButton x:Name="FiligramBrushModeToggle" Content="Filigram fırça"
+                                              Padding="10,4" Margin="8,0,4,0"
+                                              ToolTip="Şekil + Boyut ile filigram alanı seç. Hover: önizleme, tık: temizle."
+                                              Checked="FiligramBrushModeToggle_Changed"
+                                              Unchecked="FiligramBrushModeToggle_Changed"/>
                                 <Button x:Name="CleanCornerWatermarkButton" Content="Filigram temizle"
                                         Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,4,0"
-                                        ToolTip="Seçili alanı temizler; seçim ekranda kalır (kırp veya başka alan için)"
+                                        ToolTip="Fırça merkezi / pin / dikdörtgen seçimine göre temizler"
                                         Click="CleanCornerWatermarkButton_Click"/>
                                 <Button x:Name="FiligramCleanUndoButton" Content="Filigram ↶"
                                         Style="{StaticResource SecondaryButton}" Padding="8,4"
@@ -79,22 +227,14 @@
                                         Click="FiligramCleanUndoButton_Click" IsEnabled="False"/>
                                 <ToggleButton x:Name="CloneStampModeToggle" Content="Klon"
                                               Padding="10,4" Margin="12,0,4,0"
-                                              ToolTip="1) Sol tık: kaynak (yeşil). 2) Sol tık/sürükle: damga. Sağ tık: kaynağı yeniden seç."
+                                              ToolTip="1) Sol tık: kaynak. 2) Sol tık/sürükle: damga. Şekil/Boyut ortaktır."
                                               Checked="CloneStampModeToggle_Changed"
                                               Unchecked="CloneStampModeToggle_Changed"/>
                                 <Button x:Name="ClonePickSourceButton" Content="Kaynak al"
                                         Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,4,0"
+                                        MinWidth="108"
                                         ToolTip="Sonraki sol tık yeni kaynak olur. Sağ tık da kaynağı seçer."
                                         Click="ClonePickSourceButton_Click"/>
-                                <TextBlock Text="Boyut" VerticalAlignment="Center" FontSize="11" Margin="4,0,4,0"
-                                           Foreground="{StaticResource BrandMutedBrush}"/>
-                                <Slider x:Name="CloneBrushSizeSlider" Width="72" Height="26"
-                                        Minimum="2" Maximum="20" Value="6" VerticalAlignment="Center"
-                                        ToolTip="Fırça yarıçapı (görsel kısa kenarın %)"
-                                        ValueChanged="CloneBrushSizeSlider_Changed"/>
-                                <TextBlock x:Name="CloneBrushSizeLabel" Text="6%"
-                                           VerticalAlignment="Center" FontSize="11" Margin="4,0,4,0"
-                                           Foreground="{StaticResource BrandMutedBrush}" MinWidth="28"/>
                                 <Button x:Name="CloneUndoButton" Content="Klon ↶"
                                         Style="{StaticResource SecondaryButton}" Padding="8,4"
                                         ToolTip="Son klon damgasını geri al"
@@ -102,38 +242,21 @@
                                 <TextBlock x:Name="CloneStatusHint" Text=""
                                            VerticalAlignment="Center" FontSize="11" Margin="8,0,0,0"
                                            Foreground="#0A7EA4" FontWeight="SemiBold"/>
+                            </WrapPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                                 <Button x:Name="PreviewZoomOutButton" Content="🔍−"
-                                        Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="12,0,2,0"
+                                        Style="{StaticResource SecondaryButton}" Padding="6,4" Margin="0,0,2,0"
                                         ToolTip="Uzaklaştır (Ctrl + tekerlek)"
                                         Click="PreviewZoomOut_Click"/>
                                 <Button x:Name="PreviewZoomInButton" Content="🔍+"
-                                        Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                        Style="{StaticResource SecondaryButton}" Padding="6,4" Margin="0,0,2,0"
                                         ToolTip="Yakınlaştır (Ctrl + tekerlek)"
                                         Click="PreviewZoomIn_Click"/>
                                 <Button x:Name="PreviewZoomResetButton" Content="100%"
-                                        Style="{StaticResource SecondaryButton}" Padding="8,4"
-                                        ToolTip="Varsayılan yakınlaştırma (Ctrl + 0)"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4" MinWidth="52"
+                                        ToolTip="Varsayılan yakınlaştırma (Ctrl + 0) · Ctrl+tekerlek: zoom"
                                         Click="PreviewZoomReset_Click"/>
-                                <TextBlock x:Name="PreviewZoomLabel" Text="100%"
-                                           VerticalAlignment="Center" FontSize="11" Margin="6,0,0,0"
-                                           Foreground="{StaticResource BrandMutedBrush}"/>
-                                <ToggleButton x:Name="PinSelectModeToggle" Content="📌 Pin seçim"
-                                              Padding="10,4" Margin="12,0,4,0"
-                                              ToolTip="Sol tık: pin koy (max 20). Sağ tık: son pini sil. 2 pin=çizgi, 3+=çokgen."
-                                              Checked="PinSelectModeToggle_Changed"
-                                              Unchecked="PinSelectModeToggle_Changed"/>
-                                <Button x:Name="PinUndoButton" Content="Pin ↶"
-                                        Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
-                                        ToolTip="Son pini sil"
-                                        Click="PinUndoButton_Click" IsEnabled="False"/>
-                                <Button x:Name="PinClearButton" Content="Pinleri sil"
-                                        Style="{StaticResource SecondaryButton}" Padding="8,4"
-                                        ToolTip="Tüm pinleri temizle"
-                                        Click="PinClearButton_Click" IsEnabled="False"/>
                             </StackPanel>
-                            <TextBlock Grid.Column="1" Text="Ctrl+tekerlek: zoom · Pin: nokta koy · Sürükle: seç"
-                                       FontSize="10" Foreground="{StaticResource BrandMutedBrush}"
-                                       VerticalAlignment="Center"/>
                         </Grid>
                         <WrapPanel Orientation="Horizontal">
                             <TextBlock Text="En" VerticalAlignment="Center" FontSize="11" Margin="0,0,4,0"
@@ -178,16 +301,62 @@
                                     ToolTip="Dikey ortala" Click="CropAlignCenterV_Click"/>
                             <Button Content="▼" Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,10,0"
                                     ToolTip="1 px aşağı kaydır" Click="CropAlignBottom_Click"/>
-                            <Button x:Name="CropApplyButton" Content="Kırp"
-                                    Style="{StaticResource PrimaryButton}" Padding="14,5" Margin="0,0,6,0"
+                            <Button x:Name="CropApplyButton" Content="Dışını kırp"
+                                    Style="{StaticResource PrimaryButton}" Padding="12,5" Margin="0,0,4,0"
                                     Click="CropApply_Click" IsEnabled="False"
-                                    ToolTip="Seçili alanı uygula (logo/yazı yeni boyuta göre yerleşir)"/>
+                                    ToolTip="Seçimin dışını atar; seçili alanı tutar (klasik kırpma)"/>
+                            <Button x:Name="CropInteriorButton" Content="İçini kırp"
+                                    Style="{StaticResource SecondaryButton}" Padding="12,5" Margin="0,0,4,0"
+                                    Click="CropInterior_Click" IsEnabled="False"
+                                    ToolTip="Seçimin içindeki içeriği temizler (zemin onarımı) — boyut aynı kalır"/>
+                            <Button x:Name="TextureFillSelectionButton" Content="Doku nakli"
+                                    Style="{StaticResource SecondaryButton}" Padding="12,5" Margin="0,0,6,0"
+                                    Click="TextureFillSelection_Click" IsEnabled="False"
+                                    ToolTip="Önce Kaynak al, sonra seçime doku aktarır"/>
+                            <Button x:Name="SelectionCopyButton" Content="Kopyala"
+                                    Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,2,0"
+                                    Click="SelectionCopyButton_Click" IsEnabled="False"
+                                    ToolTip="Seçimi panoya kopyala (isteğe bağlı)"/>
+                            <Button x:Name="SelectionPasteButton" Content="Bırak / Döndür"
+                                    Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,2,0"
+                                    Click="SelectionPasteButton_Click" IsEnabled="False"
+                                    ToolTip="Şekil seçimini doğrudan al · sürükle · tekerlek döndür · çift tık / Enter bırak"/>
+                            <Button x:Name="SelectionRotateLeftButton" Content="↺"
+                                    Style="{StaticResource SecondaryButton}" Padding="8,5" Margin="0,0,2,0"
+                                    Click="SelectionRotateLeft_Click" IsEnabled="False"
+                                    ToolTip="Sola döndür (−5°)"/>
+                            <Button x:Name="SelectionRotateRightButton" Content="↻"
+                                    Style="{StaticResource SecondaryButton}" Padding="8,5" Margin="0,0,6,0"
+                                    Click="SelectionRotateRight_Click" IsEnabled="False"
+                                    ToolTip="Sağa döndür (+5°)"/>
                             <Button x:Name="CropUndoButton" Content="↶ Geri al"
                                     Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,6,0"
                                     Click="CropUndo_Click" IsEnabled="False"/>
-                            <Button x:Name="CropClearButton" Content="✕ Sıfırla"
-                                    Style="{StaticResource SecondaryButton}" Padding="10,5"
-                                    Click="CropClear_Click" IsEnabled="False"/>
+                            <Button x:Name="CropClearButton" Content="✕ Seçim"
+                                    Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,4,0"
+                                    Click="CropClear_Click" IsEnabled="False"
+                                    ToolTip="Bekleyen seçim / pin / fırça çerçevesini temizle (uygulanan kırpmayı da siler)"/>
+                            <Button x:Name="RestoreLastSelectionButton" Content="Seçim ↶"
+                                    Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,6,0"
+                                    Click="RestoreLastSelectionButton_Click" IsEnabled="False"
+                                    ToolTip="Son kaldırılan seçimi / pinleri geri getir"/>
+                            <Button x:Name="ResetAllPhotoEditsButton" Content="⟲ Tümünü sıfırla"
+                                    Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,12,0"
+                                    Click="ResetAllPhotoEditsButton_Click" IsEnabled="False"
+                                    ToolTip="Bu görsele uygulanan kırp, filigram, klon ve seçimleri tamamen sıfırlar"/>
+                            <ToggleButton x:Name="PinSelectModeToggle" Content="📌 Pin seçim"
+                                          Padding="10,4" Margin="0,0,4,0"
+                                          ToolTip="Sol tık: pin koy (max 20). Sağ tık: son pini sil. 2 pin=çizgi, 3+=çokgen."
+                                          Checked="PinSelectModeToggle_Changed"
+                                          Unchecked="PinSelectModeToggle_Changed"/>
+                            <Button x:Name="PinUndoButton" Content="Pin ↶"
+                                    Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,2,0"
+                                    ToolTip="Son pini sil"
+                                    Click="PinUndoButton_Click" IsEnabled="False"/>
+                            <Button x:Name="PinClearButton" Content="Pinleri sil"
+                                    Style="{StaticResource SecondaryButton}" Padding="8,4"
+                                    ToolTip="Tüm pinleri temizle"
+                                    Click="PinClearButton_Click" IsEnabled="False"/>
                         </WrapPanel>
                     </StackPanel>
 
@@ -218,6 +387,18 @@
                                         IsHitTestVisible="False"/>
                                 <Canvas x:Name="PreviewCloneCanvas"
                                         IsHitTestVisible="False"/>
+                                <Image x:Name="FloatingPasteImage"
+                                       Visibility="Collapsed"
+                                       Stretch="Fill"
+                                       IsHitTestVisible="False"
+                                       Opacity="0.92"
+                                       RenderTransformOrigin="0.5,0.5">
+                                    <Image.RenderTransform>
+                                        <TransformGroup>
+                                            <RotateTransform x:Name="FloatingPasteRotate"/>
+                                        </TransformGroup>
+                                    </Image.RenderTransform>
+                                </Image>
                                 <Grid x:Name="PreviewCropSelectionRect"
                                       Visibility="Collapsed"
                                       HorizontalAlignment="Left" VerticalAlignment="Top"
@@ -761,6 +942,7 @@
                                 <ListBox x:Name="SourceFileList" BorderThickness="0" Background="Transparent"
                                          FontSize="11" SelectionMode="Extended"
                                          SelectionChanged="SourceFileList_SelectionChanged"
+                                         PreviewMouseLeftButtonDown="SourceFileList_PreviewMouseLeftButtonDown"
                                          ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                             </Border>
 
@@ -809,7 +991,8 @@
                                             <ColumnDefinition Width="40"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="X" VerticalAlignment="Center" FontSize="11"/>
-                                        <Slider x:Name="BrandLogoOffsetXSlider" Grid.Column="1" Minimum="-150" Maximum="150" Value="0"/>
+                                        <Slider x:Name="BrandLogoOffsetXSlider" Grid.Column="1" Minimum="-150" Maximum="150" Value="0"
+                                                ToolTip="Yatay kaydırma (px, çıktı boyutu)"/>
                                         <TextBlock x:Name="BrandLogoOffsetXLabel" Grid.Column="2" Text="0"
                                                    VerticalAlignment="Center" FontSize="11"
                                                    Foreground="{StaticResource BrandMutedBrush}"/>
@@ -821,7 +1004,8 @@
                                             <ColumnDefinition Width="40"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="Y" VerticalAlignment="Center" FontSize="11"/>
-                                        <Slider x:Name="BrandLogoOffsetYSlider" Grid.Column="1" Minimum="-150" Maximum="150" Value="0"/>
+                                        <Slider x:Name="BrandLogoOffsetYSlider" Grid.Column="1" Minimum="-150" Maximum="150" Value="0"
+                                                ToolTip="Dikey kaydırma (px, çıktı boyutu)"/>
                                         <TextBlock x:Name="BrandLogoOffsetYLabel" Grid.Column="2" Text="0"
                                                    VerticalAlignment="Center" FontSize="11"
                                                    Foreground="{StaticResource BrandMutedBrush}"/>

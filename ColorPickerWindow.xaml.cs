@@ -102,12 +102,10 @@ public partial class ColorPickerWindow : Window
         ApplyHexInput();
         ApplyRgbInput();
         DialogResult = true;
-        Close();
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 }

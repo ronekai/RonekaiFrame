@@ -28,24 +28,27 @@ public static class ImagePipeline
         using var __ = ImageBrandContext.Use(imageBrand);
         using var ___ = ProcessingFitContext.Use(job.ResponsiveProductFit);
 
-        var crop = cropRectOverride ?? job.CropRect;
-        // Filigram / klon çıktı uzayında; logo/marka bunlardan SONRA gelsin
-        bool deferBrand = crop is not null
-                          || job.WatermarkCleanOps.Count > 0
-                          || job.TextureCloneOps.Count > 0;
+        var crop = job.ResolveCropRect(sourceFile, cropRectOverride);
+        var cleanOps = job.ResolveWatermarkCleanOps(sourceFile);
+        var cloneOps = job.ResolveTextureCloneOps(sourceFile);
+        var pasteOps = job.ResolveSelectionPasteOps(sourceFile);
+        // Filigram/klon/yapıştır kaynak görselde (şablondan önce); kırpma çıktı uzayında
+        bool deferBrand = crop is not null;
         using var ____ = BrandOverlayDeferContext.Use(deferBrand);
 
         using var input = SourceImageLoader.Load(sourceFile);
+        using var prepared = PrepareSourceWithPhotoEdits(input, cleanOps, cloneOps, pasteOps);
 
-        ImgSize templateSize = template?.OutputSize ?? new ImgSize(input.Width, input.Height);
+        ImgSize templateSize = template?.OutputSize ?? new ImgSize(prepared.Width, prepared.Height);
         bool skipFrame = job.ResizeOnly || template is null || template.IsPassthrough;
         bool stretchToExport = template?.StretchToExport == true && !job.ResizeOnly;
 
         Image<Rgba32> frame;
         if (skipFrame)
         {
-            frame = input.CloneAs<Rgba32>();
-            templateSize = new ImgSize(input.Width, input.Height);
+            frame = prepared.CloneAs<Rgba32>();
+            templateSize = new ImgSize(prepared.Width, prepared.Height);
+            ProductPlacementContext.SetIdentity(frame.Width, frame.Height);
             if (!deferBrand)
             {
                 LogoPlacementContext.Reset();
@@ -55,14 +58,13 @@ public static class ImagePipeline
         else
         {
             LogoPlacementContext.Reset();
-            frame = template!.Apply(input);
+            frame = template!.Apply(prepared);
         }
 
         try
         {
             if (!deferBrand)
             {
-                // Logo/yazı ölçeklemeden ÖNCE: üst-alt çerçeve ve rozet rezervleri doğru çalışır
                 using var withOverlays = ApplyLogoAndText(frame, logoSettings, job, colorTheme);
                 using var scaled = OutputScaler.Apply(
                     withOverlays,
@@ -75,7 +77,6 @@ public static class ImagePipeline
                 return;
             }
 
-            // Ölçekle → kırp → filigram → klon → marka + logo/yazı
             using var scaledForCrop = OutputScaler.Apply(
                 frame,
                 exportProfile,
@@ -87,12 +88,6 @@ public static class ImagePipeline
             if (crop is not null)
                 ImageCropper.ApplyNormalizedCrop(scaledForCrop, crop);
 
-            if (job.WatermarkCleanOps.Count > 0)
-                GeminiWatermarkCleaner.ApplyAll(scaledForCrop, job.WatermarkCleanOps);
-
-            if (job.TextureCloneOps.Count > 0)
-                TextureCloneService.ApplyAll(scaledForCrop, job.TextureCloneOps);
-
             LogoPlacementContext.Reset();
             ImageBrandOverlay.ApplyToCanvas(scaledForCrop);
 
@@ -103,6 +98,23 @@ public static class ImagePipeline
         {
             frame.Dispose();
         }
+    }
+
+    /// <summary>Filigram + klon + yapıştır kaynak fotoğrafta — şablon değişince aynı kalır.</summary>
+    public static Image<Rgba32> PrepareSourceWithPhotoEdits(
+        Image<Rgba32> source,
+        IReadOnlyList<WatermarkCleanOp> cleanOps,
+        IReadOnlyList<TextureCloneOp> cloneOps,
+        IReadOnlyList<SelectionPasteOp>? pasteOps = null)
+    {
+        var prepared = source.CloneAs<Rgba32>();
+        if (cleanOps.Count > 0)
+            GeminiWatermarkCleaner.ApplyAll(prepared, cleanOps);
+        if (cloneOps.Count > 0)
+            TextureCloneService.ApplyAll(prepared, cloneOps);
+        if (pasteOps is { Count: > 0 })
+            SelectionPasteService.ApplyAll(prepared, pasteOps);
+        return prepared;
     }
 
     private static Image<Rgba32> ApplyLogoAndText(
@@ -125,11 +137,8 @@ public static class ImagePipeline
         if (job.TextOverlay.HasText)
         {
             var withText = TextOverlayRenderer.Apply(current, job.TextOverlay, colorTheme);
-            if (!ReferenceEquals(withText, current))
-            {
-                current.Dispose();
-                current = withText;
-            }
+            current.Dispose();
+            current = withText;
         }
 
         return current;
@@ -157,7 +166,7 @@ public static class ImagePipeline
         {
             image.SaveAsPng(outputPath, new PngEncoder
             {
-                CompressionLevel = PngCompressionLevel.BestCompression
+                CompressionLevel = PngCompressionLevel.DefaultCompression
             });
             return;
         }

@@ -144,6 +144,8 @@ public static class BatchProcessor
         int success = 0;
         int failed = 0;
         var messages = new List<string>();
+        var messagesLock = new object();
+        int completed = 0;
 
         HashSet<string>? croppedOnlySelectedSet = null;
         if (job.CropOnlySelectedFiles && job.CropSelectedFilePaths.Count > 0)
@@ -151,69 +153,86 @@ public static class BatchProcessor
             croppedOnlySelectedSet = new HashSet<string>(job.CropSelectedFilePaths, StringComparer.OrdinalIgnoreCase);
         }
 
-        for (int i = 0; i < files.Count; i++)
+        int dop = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+        var parallelOptions = new ParallelOptions
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var file = files[i];
-            var fileName = Path.GetFileName(file);
-            bool isHeif = ImageInputCatalog.IsHeifFile(file);
+            MaxDegreeOfParallelism = dop,
+            CancellationToken = cancellationToken
+        };
 
-            try
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, files.Count),
+            parallelOptions,
+            async (i, ct) =>
             {
-                await Task.Run(() =>
-                {
-                    string baseName = Path.GetFileNameWithoutExtension(file);
-                    string outName = OutputFileNamer.BuildFileName(
-                        job.FileNamePattern,
-                        baseName,
-                        stamp,
-                        templateId,
-                        colorTheme.Id,
-                        exportProfile.Id,
-                        logoSettings.ModeSuffix,
-                        job.SaveAsPng);
-                    string outPath = Path.Combine(outputFolder, outName);
+                var file = files[i];
+                var fileName = Path.GetFileName(file);
+                bool isHeif = ImageInputCatalog.IsHeifFile(file);
 
-                    // Klasörün tamamı: job.imageBrand (UI) kaynak. Seçili dosya modunda PerFile override.
-                    var brandForFile = job.ProcessOnlySelectedFiles
-                        ? BrandLogoResolver.ResolveForFile(
-                            file,
-                            imageBrand,
-                            folderLogoSettings,
-                            preferPerFileOverrides: true)
-                        : imageBrand;
+                try
+                {
+                    await Task.Run(() =>
+                    {
+                        string baseName = Path.GetFileNameWithoutExtension(file);
+                        string outName = OutputFileNamer.BuildFileName(
+                            job.FileNamePattern,
+                            baseName,
+                            stamp,
+                            templateId,
+                            colorTheme.Id,
+                            exportProfile.Id,
+                            logoSettings.ModeSuffix,
+                            job.SaveAsPng);
+                        string outPath = Path.Combine(outputFolder, outName);
+
+                        var brandForFile = job.ProcessOnlySelectedFiles
+                            ? BrandLogoResolver.ResolveForFile(
+                                file,
+                                imageBrand,
+                                folderLogoSettings,
+                                preferPerFileOverrides: true)
+                            : imageBrand;
 
                         var cropOverride = croppedOnlySelectedSet is null
                             ? job.CropRect
                             : croppedOnlySelectedSet.Contains(file) ? job.CropRect : null;
 
-                    ImagePipeline.ProcessAndSave(
-                        file,
-                        outPath,
-                        template,
-                        colorTheme,
-                        themeColors,
-                        logoSettings,
-                        brandForFile,
-                        exportProfile,
-                        job,
-                        cropOverride);
-                }, cancellationToken);
+                        ImagePipeline.ProcessAndSave(
+                            file,
+                            outPath,
+                            template,
+                            colorTheme,
+                            themeColors,
+                            logoSettings,
+                            brandForFile,
+                            exportProfile,
+                            job,
+                            cropOverride);
+                    }, ct);
 
-                success++;
-                var okMsg = isHeif ? $"✓ {fileName} (HEIC)" : $"✓ {fileName}";
-                messages.Add(okMsg);
-                progress?.Report(new ProcessProgress(i + 1, files.Count, okMsg, false));
-            }
-            catch (Exception ex)
-            {
-                failed++;
-                var errMsg = $"✗ {fileName}: {ex.Message}";
-                messages.Add(errMsg);
-                progress?.Report(new ProcessProgress(i + 1, files.Count, errMsg, true));
-            }
-        }
+                    int done = Interlocked.Increment(ref completed);
+                    Interlocked.Increment(ref success);
+                    var okMsg = isHeif ? $"✓ {fileName} (HEIC)" : $"✓ {fileName}";
+                    lock (messagesLock)
+                        messages.Add(okMsg);
+                    progress?.Report(new ProcessProgress(done, files.Count, okMsg, false));
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    int done = Interlocked.Increment(ref completed);
+                    Interlocked.Increment(ref failed);
+                    var errMsg = $"✗ {fileName}: {ex.Message}";
+                    lock (messagesLock)
+                        messages.Add(errMsg);
+                    progress?.Report(new ProcessProgress(done, files.Count, errMsg, true));
+                }
+            });
 
+        messages.Sort(StringComparer.OrdinalIgnoreCase);
         return (success, failed, messages);
     }
 }
