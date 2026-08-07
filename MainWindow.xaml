@@ -360,24 +360,41 @@
                         </WrapPanel>
                     </StackPanel>
 
-                    <!-- Sahne: Ctrl+tekerlek ile yakınlaştırma -->
-                    <Border Grid.Row="1" Background="#ECEFF4" CornerRadius="8"
-                            BorderBrush="#D0D5DE" BorderThickness="1" ClipToBounds="True">
+                    <!-- Sahne: Ctrl+tekerlek zoom · ürün görseli sürükle-bırak -->
+                    <Border x:Name="LivePreviewDropZone" Grid.Row="1" Background="#ECEFF4" CornerRadius="8"
+                            BorderBrush="#D0D5DE" BorderThickness="1" ClipToBounds="True"
+                            AllowDrop="True"
+                            PreviewDragOver="LivePreviewDropZone_DragOver"
+                            PreviewDrop="LivePreviewDropZone_Drop"
+                            DragOver="LivePreviewDropZone_DragOver"
+                            Drop="LivePreviewDropZone_Drop"
+                            ToolTip="Ürün görseli veya klasör sürükleyip bırakın — yol otomatik bulunur, dosya listesinde seçilir">
                         <ScrollViewer x:Name="PreviewScrollViewer"
+                                      AllowDrop="True"
+                                      PreviewDragOver="LivePreviewDropZone_DragOver"
+                                      PreviewDrop="LivePreviewDropZone_Drop"
                                       HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Auto"
                                       CanContentScroll="False"
                                       Focusable="True"
                                       PreviewMouseWheel="PreviewScrollViewer_PreviewMouseWheel"
                                       SizeChanged="PreviewScrollViewer_SizeChanged">
-                            <Grid x:Name="PreviewZoomHost" Background="Transparent">
+                            <Grid x:Name="PreviewZoomHost" Background="Transparent"
+                                  AllowDrop="True"
+                                  PreviewDragOver="LivePreviewDropZone_DragOver"
+                                  PreviewDrop="LivePreviewDropZone_Drop">
                                 <TextBlock x:Name="PreviewPlaceholderText"
-                                           Text="Önizleme hazırlanıyor…"
+                                           Text="Önizleme hazırlanıyor…&#x0a;veya ürün görselini buraya sürükleyin"
+                                           TextAlignment="Center"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Foreground="{StaticResource BrandMutedBrush}" FontSize="14"/>
+                                           Foreground="{StaticResource BrandMutedBrush}" FontSize="14"
+                                           IsHitTestVisible="False"/>
                                 <Image x:Name="LivePreviewImage" Stretch="Uniform"
                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                        Margin="8" Visibility="Collapsed"
+                                       AllowDrop="True"
+                                       PreviewDragOver="LivePreviewDropZone_DragOver"
+                                       PreviewDrop="LivePreviewDropZone_Drop"
                                        MouseLeftButtonDown="LivePreviewImage_MouseLeftButtonDown"
                                        MouseRightButtonDown="LivePreviewImage_MouseRightButtonDown"
                                        MouseMove="LivePreviewImage_MouseMove"
@@ -896,7 +913,9 @@
                                        FontSize="11" Foreground="{StaticResource BrandMutedBrush}" Margin="0,0,0,6"/>
                             <Border x:Name="SourceDropZone" Margin="0,0,0,6" CornerRadius="6"
                                     BorderBrush="#D0D5DE" BorderThickness="1" Background="#FAFBFC"
-                                    AllowDrop="True" DragOver="SourceDropZone_DragOver" Drop="SourceDropZone_Drop">
+                                    AllowDrop="True"
+                                    PreviewDragOver="SourceDropZone_DragOver" PreviewDrop="SourceDropZone_Drop"
+                                    DragOver="SourceDropZone_DragOver" Drop="SourceDropZone_Drop">
                                 <Grid Margin="0,0,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>

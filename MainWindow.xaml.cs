@@ -2438,31 +2438,65 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SourceDropZone_DragOver(object sender, DragEventArgs e)
+    private void SourceDropZone_DragOver(object sender, DragEventArgs e) =>
+        SourcePathsDragOver(e);
+
+    private void SourceDropZone_Drop(object sender, DragEventArgs e) =>
+        ApplyDroppedSourcePaths(e);
+
+    private void LivePreviewDropZone_DragOver(object sender, DragEventArgs e) =>
+        SourcePathsDragOver(e);
+
+    private void LivePreviewDropZone_Drop(object sender, DragEventArgs e) =>
+        ApplyDroppedSourcePaths(e);
+
+    /// <summary>
+    /// DragOver sırasında FileDrop verisine dokunma — Explorer OLE sürüklemesinde
+    /// GetData çağrısı bırakmayı (Copy imlecini) bozar. Sadece GetDataPresent yeter.
+    /// </summary>
+    private static void SourcePathsDragOver(DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            e.Effects = DragDropEffects.Copy;
-        else
-            e.Effects = DragDropEffects.None;
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private void SourceDropZone_Drop(object sender, DragEventArgs e)
+    private static bool TryGetDroppedSourcePaths(
+        DragEventArgs e,
+        out string? folder,
+        out List<string> files)
     {
+        folder = null;
+        files = [];
         if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+            return false;
+
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
+            return false;
+
+        folder = paths.FirstOrDefault(Directory.Exists);
+        files = paths.Where(File.Exists)
+            .Where(p => ImageInputCatalog.IsSupportedExtension(Path.GetExtension(p)))
+            .ToList();
+        return folder is not null || files.Count > 0;
+    }
+
+    private void ApplyDroppedSourcePaths(DragEventArgs e)
+    {
+        if (!TryGetDroppedSourcePaths(e, out var folder, out var files))
             return;
 
-        var paths = ((string[])e.Data.GetData(DataFormats.FileDrop)!)!;
-        var folder = paths.FirstOrDefault(Directory.Exists);
-        if (folder is not null)
+        e.Handled = true;
+
+        // Klasör bırakıldı → kaynak klasörü + panel listesi
+        if (folder is not null && files.Count == 0)
         {
             SourceFolderBox.Text = folder;
             return;
         }
 
-        var files = paths.Where(File.Exists)
-            .Where(p => ImageInputCatalog.IsSupportedExtension(Path.GetExtension(p)))
-            .ToList();
+        // Görsel(ler) bırakıldı → üst klasör yolu otomatik, panelde seç, önizle
         if (files.Count == 0)
             return;
 
@@ -2471,16 +2505,26 @@ public partial class MainWindow : Window
             SourceFolderBox.Text = parent;
 
         RefreshSourceFileList();
-        SourceFileList.SelectedItems.Clear();
-        foreach (var file in files)
+        _suppressSourceSelectionHandler = true;
+        try
         {
-            for (int i = 0; i < SourceFileList.Items.Count; i++)
+            SourceFileList.SelectedItems.Clear();
+            foreach (var file in files)
             {
-                if (string.Equals(SourceFileList.Items[i]?.ToString(), file, StringComparison.OrdinalIgnoreCase))
-                    SourceFileList.SelectedItems.Add(SourceFileList.Items[i]);
+                for (int i = 0; i < SourceFileList.Items.Count; i++)
+                {
+                    if (string.Equals(SourceFileList.Items[i]?.ToString(), file, StringComparison.OrdinalIgnoreCase))
+                        SourceFileList.SelectedItems.Add(SourceFileList.Items[i]);
+                }
             }
         }
-        ProcessSelectedOnlyCheck.IsChecked = files.Count > 0;
+        finally
+        {
+            _suppressSourceSelectionHandler = false;
+        }
+
+        _livePreviewSourceFile = files[0];
+        ProcessSelectedOnlyCheck.IsChecked = true;
         OnProcessSelectionModeChanged();
         ScheduleLivePreview();
     }
@@ -5884,7 +5928,7 @@ public partial class MainWindow : Window
             PreviewPlaceholderText.Visibility = Visibility.Visible;
             PreviewPlaceholderText.Text = result.ErrorMessage is not null
                 ? "Önizleme oluşturulamadı"
-                : "Önizleme yok";
+                : "Ürün görselini buraya sürükleyin\nveya sağ panelden klasör seçin";
             if (result.ErrorMessage is not null)
             {
                 PreviewErrorText.Text = result.ErrorMessage;
