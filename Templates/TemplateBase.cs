@@ -18,6 +18,10 @@ public abstract class TemplateBase : IProductTemplate
     public abstract string Description { get; }
     public abstract ImgSize OutputSize { get; }
 
+    public virtual bool UsesSmartOutputSize => false;
+
+    public virtual ImgSize ResolveOutputSize(int sourceWidth, int sourceHeight) => OutputSize;
+
     public virtual bool IsPassthrough => false;
 
     public virtual bool StretchToExport => false;

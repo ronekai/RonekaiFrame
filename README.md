@@ -43,7 +43,9 @@ Derleme hatası alırsanız sırayla deneyin: **`Derle.bat`** → **`TamTemizlik
 ## Özellikler (son sürüm)
 
 ### Görsel işleme
-- **20+ şablon** (beyaz stüdyo, Pinterest, Story 9:16, Polaroid, Trendyol kare, lüks çerçeve, banner şerit vb.)
+- **Shopier (1:1) / Web (4:3) / Instagram (4:5)** — her biri Beyaz & Siyah; zemin **renk paletinden**
+- **Akıllı boyut** — büyük kaynakta orana en yakın 100 px’lik tuval (ör. 2384×2200 → 2400×2400)
+- **Kenarları uzat** — letterbox boşluğunu fotoğraf kenar tonuyla doldurur; logo/klon uzatılan zeminin üstüne uygulanır
 - **17 renk paketi** + özel zemin / RONEKAI / .DEN (hex veya RGB)
 - **Kayıtlı profiller** — şablon, renk, logo, çıktı ve gelişmiş ayarları tek tıkla yükle
 - **Favori / son kullanılan şablonlar**

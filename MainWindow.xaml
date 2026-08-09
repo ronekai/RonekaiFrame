@@ -313,6 +313,10 @@
                                     Style="{StaticResource SecondaryButton}" Padding="12,5" Margin="0,0,6,0"
                                     Click="TextureFillSelection_Click" IsEnabled="False"
                                     ToolTip="Önce Kaynak al, sonra seçime doku aktarır"/>
+                            <Button x:Name="EdgePadFromSelectionButton" Content="Şeridi kenara uzat"
+                                    Style="{StaticResource SecondaryButton}" Padding="12,5" Margin="0,0,6,0"
+                                    Click="EdgePadFromSelection_Click" IsEnabled="False"
+                                    ToolTip="İki nokta / ince seçim: dikey şerit → sol+sağ; yatay şerit → üst+alt. Seçim yoksa otomatik kenar kullanılır."/>
                             <Button x:Name="SelectionCopyButton" Content="Kopyala"
                                     Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,2,0"
                                     Click="SelectionCopyButton_Click" IsEnabled="False"
@@ -546,7 +550,13 @@
                                        FontSize="11" Margin="0,0,0,6"/>
                             <CheckBox x:Name="ResponsiveProductFitCheck"
                                       Content="Responsif sığdır (boşlukları doldur, kenarlar kırpılabilir)"
+                                      Margin="0,0,0,4" FontSize="11"
+                                      Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
+                            <CheckBox x:Name="ExtendTemplateEdgesCheck"
+                                      Content="Kenarları uzat (fotoğraf zeminini sol/sağ veya üst/alt boşluğa yay)"
+                                      IsChecked="True"
                                       Margin="0,0,0,10" FontSize="11"
+                                      ToolTip="Şablonun eklediği beyaz/renkli boşlukları, fotoğrafın kenar tonuyla otomatik tamamlar. İnce dikey/yatay seçim varsa onu örnek şerit olarak kullanır."
                                       Checked="AdvancedOption_Changed" Unchecked="AdvancedOption_Changed"/>
 
                             <!-- Renk: üstte ve vurgulu kart -->

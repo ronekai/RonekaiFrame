@@ -7,6 +7,15 @@ public sealed class ProcessingJobSettings
     public bool ResizeOnly { get; init; }
     public bool StretchToExport { get; init; }
     public bool ResponsiveProductFit { get; init; }
+
+    /// <summary>
+    /// Şablon letterbox boşluklarını fotoğraf kenar zeminiyle uzat (beyaz palet / gri stüdyo farkını kapatır).
+    /// </summary>
+    public bool ExtendTemplateEdges { get; init; } = true;
+
+    /// <summary>İsteğe bağlı örnek şerit (tuval normalize). null = otomatik kenar örnekleme.</summary>
+    public NormalizedCropRect? EdgePadSampleRect { get; init; }
+
     public int JpegQuality { get; init; } = 92;
     public bool SaveAsPng { get; init; }
     public string FileNamePattern { get; init; } = "{base}";

@@ -30,7 +30,7 @@ public sealed class StoryVerticalTemplate : TemplateBase
 
     public override string Id => "story-vertical";
 
-    public override string Name => "Hikaye Dikey (9:16)";
+    public override string Name => "Hikaye Dikey";
 
     public override string Description => "1080×1920 story / reels tam dikey.";
 

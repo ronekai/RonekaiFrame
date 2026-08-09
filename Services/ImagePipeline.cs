@@ -32,16 +32,18 @@ public static class ImagePipeline
         var cleanOps = job.ResolveWatermarkCleanOps(sourceFile);
         var cloneOps = job.ResolveTextureCloneOps(sourceFile);
         var pasteOps = job.ResolveSelectionPasteOps(sourceFile);
-        // Filigram/klon/yapıştır kaynak görselde (şablondan önce); kırpma çıktı uzayında
-        bool deferBrand = crop is not null;
-        using var ____ = BrandOverlayDeferContext.Use(deferBrand);
 
         using var input = SourceImageLoader.Load(sourceFile);
-        using var prepared = PrepareSourceWithPhotoEdits(input, cleanOps, cloneOps, pasteOps);
+        using var prepared = PrepareSourceWithPhotoEdits(input, cleanOps, pasteOps);
 
-        ImgSize templateSize = template?.OutputSize ?? new ImgSize(prepared.Width, prepared.Height);
+        ImgSize templateSize = template?.ResolveOutputSize(prepared.Width, prepared.Height)
+                               ?? new ImgSize(prepared.Width, prepared.Height);
         bool skipFrame = job.ResizeOnly || template is null || template.IsPassthrough;
         bool stretchToExport = template?.StretchToExport == true && !job.ResizeOnly;
+        bool extendEdges = job.ExtendTemplateEdges && !skipFrame;
+        // Marka/logo: kenar uzatma + klon sonrası çizilsin (uzatılan zeminin üstüne otursun)
+        bool deferBrand = crop is not null || extendEdges;
+        using var ____ = BrandOverlayDeferContext.Use(deferBrand);
 
         Image<Rgba32> frame;
         if (skipFrame)
@@ -59,12 +61,35 @@ public static class ImagePipeline
         {
             LogoPlacementContext.Reset();
             frame = template!.Apply(prepared);
+            templateSize = new ImgSize(frame.Width, frame.Height);
         }
+
+        if (extendEdges)
+            EdgePadFillService.Apply(frame, job.EdgePadSampleRect);
+
+        if (cloneOps.Count > 0)
+            TextureCloneService.ApplyAll(frame, cloneOps);
 
         try
         {
             if (!deferBrand)
             {
+                using var withOverlays = ApplyLogoAndText(frame, logoSettings, job, colorTheme);
+                using var scaled = OutputScaler.Apply(
+                    withOverlays,
+                    exportProfile,
+                    input.Width,
+                    input.Height,
+                    templateSize,
+                    stretchToExport);
+                SaveToPath(scaled, outputPath, job, themeColors);
+                return;
+            }
+
+            if (crop is null)
+            {
+                LogoPlacementContext.Reset();
+                ImageBrandOverlay.ApplyToCanvas(frame);
                 using var withOverlays = ApplyLogoAndText(frame, logoSettings, job, colorTheme);
                 using var scaled = OutputScaler.Apply(
                     withOverlays,
@@ -85,8 +110,7 @@ public static class ImagePipeline
                 templateSize,
                 stretchToExport);
 
-            if (crop is not null)
-                ImageCropper.ApplyNormalizedCrop(scaledForCrop, crop);
+            ImageCropper.ApplyNormalizedCrop(scaledForCrop, crop);
 
             LogoPlacementContext.Reset();
             ImageBrandOverlay.ApplyToCanvas(scaledForCrop);
@@ -100,18 +124,15 @@ public static class ImagePipeline
         }
     }
 
-    /// <summary>Filigram + klon + yapıştır kaynak fotoğrafta — şablon değişince aynı kalır.</summary>
+    /// <summary>Filigram + yapıştır kaynak fotoğrafta. Klon şablon tuvalinde uygulanır.</summary>
     public static Image<Rgba32> PrepareSourceWithPhotoEdits(
         Image<Rgba32> source,
         IReadOnlyList<WatermarkCleanOp> cleanOps,
-        IReadOnlyList<TextureCloneOp> cloneOps,
         IReadOnlyList<SelectionPasteOp>? pasteOps = null)
     {
         var prepared = source.CloneAs<Rgba32>();
         if (cleanOps.Count > 0)
             GeminiWatermarkCleaner.ApplyAll(prepared, cleanOps);
-        if (cloneOps.Count > 0)
-            TextureCloneService.ApplyAll(prepared, cloneOps);
         if (pasteOps is { Count: > 0 })
             SelectionPasteService.ApplyAll(prepared, pasteOps);
         return prepared;

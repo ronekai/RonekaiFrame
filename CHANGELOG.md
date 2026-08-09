@@ -1,5 +1,30 @@
 # Değişiklik günlüğü
 
+## PhonixFrame — 2026-08-09
+
+### Şablonlar
+- Liste sadeleştirildi: **Shopier (1:1)**, **Web (4:3)**, **Instagram (4:5)** — her biri **Beyaz / Siyah**
+- Şablon isimlerinde oran etiketi (ör. `1:1 · akıllı boyut`)
+- Zemin artık sabit S/B değil; **renk paleti** (paket / damla / gradyan) ile doldurulur
+- **Akıllı boyut:** büyük kaynakta seçilen orana en yakın 100 px’lik tuval  
+  (ör. `2384×2200` → Shopier `2400×2400`, Web `3000×2250`, Instagram `2400×3000`)
+
+### Kenar uzatma (letterbox)
+- **Kenarları uzat:** şablonun sol/sağ veya üst/alt boşluğunu fotoğraf kenar tonuyla doldurur  
+  (saf beyaz palet ile gri stüdyo zemini farkını kapatır)
+- İnce beyaz birleşim çizgisi giderildi (taşırma + tam dolgu)
+- **Şeridi kenara uzat:** dikey seçim → sol/sağ; yatay seçim → üst/alt
+- İşlem sırası: şablon → kenar uzat → klon → **marka/logo** (logo uzatılan zeminin üstüne oturur)
+
+### Klon / doku
+- Klon damgası şablon tuvali uzayında; tamamlanan (uzatılan) alanlara da uygulanır
+
+### Notlar
+- Eski stüdyo / Pinterest / Story vb. şablonlar listeden kaldırıldı (`Şablon yok` / `Yay` duruyor)
+- Masaüstü kurulum: `MasaustuKur.bat` veya `%LOCALAPPDATA%\PhonixFrame`
+
+---
+
 ## PhonixFrame v1.0 (2026-05)
 
 ### Yeniden markalama

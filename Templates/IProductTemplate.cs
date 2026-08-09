@@ -9,7 +9,15 @@ public interface IProductTemplate
     string Id { get; }
     string Name { get; }
     string Description { get; }
+
+    /// <summary>Varsayılan / minimum çıktı boyutu (liste etiketi).</summary>
     ImgSize OutputSize { get; }
+
+    /// <summary>Kaynağa göre gerçek tuval boyutu (akıllı şablonlar uzun kenarı yuvarlar).</summary>
+    ImgSize ResolveOutputSize(int sourceWidth, int sourceHeight);
+
+    /// <summary>Çıktı boyutu kaynağa göre değişir.</summary>
+    bool UsesSmartOutputSize { get; }
 
     /// <summary>Şablon çerçevesi uygulanmaz (ham görsel).</summary>
     bool IsPassthrough { get; }

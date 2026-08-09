@@ -12,7 +12,8 @@ public enum TextureCloneBrushShape
 
 /// <summary>
 /// Klon damga: kaynak merkezden hedef merkeze yumuşak yama.
-/// RadiusNorm: görsel kısa kenarına göre yarıçap (0..1).
+/// Koordinatlar önizleme / şablon tuvali normalize (0..1) — tamamlanan alanlara da uygulanır.
+/// RadiusNorm: tuval kısa kenarına göre yarıçap (0..1).
 /// FillRect doluysa seçim dikdörtgenine doku nakli yapar (RadiusNorm yok sayılır).
 /// </summary>
 public sealed record TextureCloneOp(

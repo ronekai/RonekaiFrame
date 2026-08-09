@@ -13,6 +13,9 @@ public sealed class YayTemplate : IProductTemplate
         "Görsel seçili çıktı çözünürlüğü / platform boyutuna tam yayılır (oran bozulabilir). " +
         "Instagram, Trendyol vb. sabit boyut seçmeniz önerilir.";
     public ImgSize OutputSize => new(1, 1);
+    public ImgSize ResolveOutputSize(int sourceWidth, int sourceHeight) =>
+        new(Math.Max(1, sourceWidth), Math.Max(1, sourceHeight));
+    public bool UsesSmartOutputSize => false;
     public bool IsPassthrough => true;
     public bool StretchToExport => true;
 

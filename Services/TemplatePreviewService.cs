@@ -44,9 +44,6 @@ public static class TemplatePreviewService
             var cloneOps = job.ResolveTextureCloneOps(sampleSourceFile);
             var pasteOps = job.ResolveSelectionPasteOps(sampleSourceFile);
             var cropRect = job.ResolveCropRect(sampleSourceFile);
-            // Filigram/klon kaynakta; yalnızca kırpma markayı erteler
-            bool deferBrand = cropRect is not null;
-            using var ____ = BrandOverlayDeferContext.Use(deferBrand);
 
             Image<Rgba32>? sourceImage = null;
             bool usedRealPhoto = false;
@@ -63,26 +60,25 @@ public static class TemplatePreviewService
             else
             {
                 sourceImage = DemoProductImage.Create();
+                usedRealPhoto = false;
                 srcW = sampleSourceWidth ?? sourceImage.Width;
                 srcH = sampleSourceHeight ?? sourceImage.Height;
             }
 
             try
             {
-                // Filigram/klon: kaynak üzerinde (şablondan bağımsız); hız için geçici küçült
+                // Filigram/yapıştır kaynakta; hız için geçici küçült. Klon şablon sonrası.
                 using var preparedSource = sourceImage.CloneAs<Rgba32>();
                 sourceImage.Dispose();
                 sourceImage = null;
 
-                bool photoEdits = cleanOps.Count > 0 || cloneOps.Count > 0 || pasteOps.Count > 0;
+                bool photoEdits = cleanOps.Count > 0 || pasteOps.Count > 0;
                 int prepW = preparedSource.Width;
                 int prepH = preparedSource.Height;
                 bool cappedPrep = photoEdits && CapLongEdgeInPlace(preparedSource, MaxPreviewWorkLongEdge);
 
                 if (cleanOps.Count > 0)
                     GeminiWatermarkCleaner.ApplyAll(preparedSource, cleanOps, previewFast: true);
-                if (cloneOps.Count > 0)
-                    TextureCloneService.ApplyAll(preparedSource, cloneOps);
                 if (pasteOps.Count > 0)
                     SelectionPasteService.ApplyAll(preparedSource, pasteOps);
 
@@ -91,7 +87,13 @@ public static class TemplatePreviewService
 
                 bool skipFrame = job.ResizeOnly || template.IsPassthrough;
                 bool stretchToExport = template.StretchToExport && !job.ResizeOnly;
-                ImgSize templateSize = skipFrame ? new ImgSize(srcW, srcH) : template.OutputSize;
+                bool extendEdges = job.ExtendTemplateEdges && !skipFrame;
+                bool deferBrand = cropRect is not null || extendEdges;
+                using var ____ = BrandOverlayDeferContext.Use(deferBrand);
+
+                ImgSize templateSize = skipFrame
+                    ? new ImgSize(srcW, srcH)
+                    : template.ResolveOutputSize(preparedSource.Width, preparedSource.Height);
 
                 Image<Rgba32> frame;
                 if (skipFrame)
@@ -108,6 +110,20 @@ public static class TemplatePreviewService
                 {
                     LogoPlacementContext.Reset();
                     frame = template.Apply(preparedSource);
+                    templateSize = new ImgSize(frame.Width, frame.Height);
+                }
+
+                if (extendEdges)
+                    EdgePadFillService.Apply(frame, job.EdgePadSampleRect);
+
+                if (cloneOps.Count > 0)
+                {
+                    int fw = frame.Width;
+                    int fh = frame.Height;
+                    bool cappedClone = CapLongEdgeInPlace(frame, MaxPreviewWorkLongEdge);
+                    TextureCloneService.ApplyAll(frame, cloneOps);
+                    if (cappedClone)
+                        RestoreSizeInPlace(frame, fw, fh);
                 }
 
                 using (frame)
@@ -132,6 +148,24 @@ public static class TemplatePreviewService
                         exportW = output.Width;
                         exportH = output.Height;
                     }
+                    else if (cropRect is null)
+                    {
+                        LogoPlacementContext.Reset();
+                        ImageBrandOverlay.ApplyToCanvas(frame);
+                        using var withLogo = ApplyLogoIfNeeded(frame, logoSettings);
+                        using var withText = job.TextOverlay.HasText
+                            ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
+                            : withLogo.CloneAs<Rgba32>();
+                        output = OutputScaler.Apply(
+                            withText,
+                            exportProfile,
+                            srcW,
+                            srcH,
+                            templateSize,
+                            stretchToExport);
+                        exportW = output.Width;
+                        exportH = output.Height;
+                    }
                     else
                     {
                         using var scaled = OutputScaler.Apply(
@@ -142,8 +176,7 @@ public static class TemplatePreviewService
                             templateSize,
                             stretchToExport);
 
-                        if (cropRect is { } crop)
-                            ImageCropper.ApplyNormalizedCrop(scaled, crop);
+                        ImageCropper.ApplyNormalizedCrop(scaled, cropRect);
 
                         exportW = scaled.Width;
                         exportH = scaled.Height;
@@ -184,6 +217,8 @@ public static class TemplatePreviewService
                             modNote += $" · filigram×{cleanOps.Count}";
                         if (cloneOps.Count > 0)
                             modNote += $" · klon×{cloneOps.Count}";
+                        if (job.ExtendTemplateEdges && !skipFrame)
+                            modNote += " · kenar uzat";
 
                         return new LivePreviewResult(
                             png,

@@ -72,11 +72,13 @@ public partial class MainWindow : Window
     private Point? _filigramBrushCenterCanvas; // tuval norm — şekil+boyut seçimi
     private Point? _filigramHoverNorm;
     private bool _clonePickSourceNext;
-    private Point? _cloneSourceNorm; // sabit kaynak merkezi (mutlak klon)
+    private Point? _cloneSourceNorm; // sabit kaynak merkezi (önizleme / şablon tuvali, normalize 0..1)
     private Point? _cloneHoverNorm;
     private bool _clonePainting;
     private Point? _cloneLastStampNorm;
     private long _lastCloneOverlayTick;
+    /// <summary>Kenar uzatma için isteğe bağlı örnek şerit (tuval normalize).</summary>
+    private NormalizedCropRect? _edgePadSampleRect;
     private double _previewZoom = 1.0;
     private const double PreviewZoomMin = 0.5;
     private const double PreviewZoomMax = 8.0;
@@ -1477,7 +1479,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Siyah şablonlar palet zeminini kullanır; açık pakette kalırsa değişiklik zor görülür.
+    /// Siyah şablonlarda koyu, beyaz şablonlarda açık palet öner.
     /// </summary>
     private void SuggestColorPackForTemplate(string templateId)
     {
@@ -1487,8 +1489,10 @@ public partial class MainWindow : Window
         bool wantsDark = templateId.Contains("black", StringComparison.OrdinalIgnoreCase)
                          || templateId.Contains("siyah", StringComparison.OrdinalIgnoreCase)
                          || templateId.Contains("dark", StringComparison.OrdinalIgnoreCase);
+        bool wantsLight = templateId.Contains("white", StringComparison.OrdinalIgnoreCase)
+                          || templateId.Contains("beyaz", StringComparison.OrdinalIgnoreCase);
 
-        if (!wantsDark)
+        if (!wantsDark && !wantsLight)
             return;
 
         if (ColorPackCombo.SelectedItem is ColorPackListItem cur && cur.Theme.IsCustom)
@@ -1501,12 +1505,18 @@ public partial class MainWindow : Window
             bgIsLight = hex.Length >= 6 && IsHexLight(hex);
         }
 
-        if (!bgIsLight)
+        if (wantsDark && !bgIsLight)
             return;
+        if (wantsLight && bgIsLight)
+            return;
+
+        string[] prefer = wantsDark
+            ? ["gece", "gece-altin", "antrasit"]
+            : ["beyaz", "klasik", "monokrom"];
 
         foreach (ColorPackListItem item in ColorPackCombo.Items)
         {
-            if (item.Theme.Id is "gece" or "gece-altin" or "antrasit")
+            if (prefer.Contains(item.Theme.Id, StringComparer.OrdinalIgnoreCase))
             {
                 ColorPackCombo.SelectedItem = item;
                 return;
@@ -1844,6 +1854,8 @@ public partial class MainWindow : Window
             ResizeOnly = resizeOnly,
             StretchToExport = template?.StretchToExport == true && !resizeOnly,
             ResponsiveProductFit = ResponsiveProductFitCheck.IsChecked == true && !resizeOnly,
+            ExtendTemplateEdges = ExtendTemplateEdgesCheck?.IsChecked != false && !resizeOnly,
+            EdgePadSampleRect = _edgePadSampleRect,
             JpegQuality = (int)JpegQualitySlider.Value,
             SaveAsPng = OutputFormatCombo?.SelectedItem is OutputFormatListItem fmt ? fmt.SaveAsPng : SaveAsPngCheck.IsChecked == true,
             FileNamePattern = string.IsNullOrWhiteSpace(OutputFileNameBox.Text)
@@ -2538,8 +2550,26 @@ public partial class MainWindow : Window
         int? th = null;
         if (TemplateCombo.SelectedItem is TemplateListItem templateItem && !templateItem.Template.IsPassthrough)
         {
-            tw = templateItem.Template.OutputSize.Width;
-            th = templateItem.Template.OutputSize.Height;
+            int sw = 0, sh = 0;
+            if (!string.IsNullOrWhiteSpace(_livePreviewSourceFile) && File.Exists(_livePreviewSourceFile))
+            {
+                try
+                {
+                    using var img = PreviewSourceCache.GetClone(_livePreviewSourceFile);
+                    sw = img.Width;
+                    sh = img.Height;
+                }
+                catch
+                {
+                    // ignore — min boyut kullan
+                }
+            }
+
+            var size = sw > 0 && sh > 0
+                ? templateItem.Template.ResolveOutputSize(sw, sh)
+                : templateItem.Template.OutputSize;
+            tw = size.Width;
+            th = size.Height;
         }
 
         string? selectedId = ExportResolutionCombo.SelectedItem is ExportResolutionListItem current
@@ -3008,6 +3038,12 @@ public partial class MainWindow : Window
             TextureFillSelectionButton.IsEnabled =
                 (_cloneSourceNorm is not null)
                 && (CropApplyButton?.IsEnabled == true);
+        if (EdgePadFromSelectionButton is not null)
+            EdgePadFromSelectionButton.IsEnabled =
+                CropApplyButton?.IsEnabled == true
+                || _filigramBrushCenterCanvas is not null
+                || _pendingCropRect is not null
+                || _selectionPins.Count >= 2;
         bool hasSel = CropApplyButton?.IsEnabled == true
                       || _filigramBrushCenterCanvas is not null
                       || (_pendingCropRect is not null);
@@ -3153,7 +3189,7 @@ public partial class MainWindow : Window
         ScheduleLivePreview();
     }
 
-    /// <summary>Klon kaynağından seçim alanına doku nakli.</summary>
+    /// <summary>Klon kaynağından seçim alanına doku nakli (şablon tuvali uzayı).</summary>
     private void TextureFillSelection_Click(object sender, RoutedEventArgs e)
     {
         if (_cloneSourceNorm is null)
@@ -3166,7 +3202,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!TryGetSelectionSourceRect(out var sourceRect, out var destCenter))
+        if (!TryGetSelectionCanvasRect(out var canvasRect, out var destCenter))
         {
             MessageBox.Show(
                 "Doku nakli için önce bir seçim alanı oluşturun.",
@@ -3182,10 +3218,105 @@ public partial class MainWindow : Window
             new NormalizedPoint(destCenter.X, destCenter.Y),
             RadiusNorm: 0.05,
             GetEffectiveCloneStampShape(),
-            FillRect: sourceRect));
+            FillRect: canvasRect));
         RefreshCloneButtonsUi();
         UpdateCropUi();
         ScheduleLivePreview();
+    }
+
+    /// <summary>
+    /// Seçilen ince şeridi sol/sağ veya üst/alt letterbox’a uzatır.
+    /// Dikey seçim → sol+sağ; yatay seçim → üst+alt.
+    /// </summary>
+    private void EdgePadFromSelection_Click(object sender, RoutedEventArgs e)
+    {
+        if (ExtendTemplateEdgesCheck is not null)
+            ExtendTemplateEdgesCheck.IsChecked = true;
+
+        if (TryGetSelectionCanvasRect(out var canvasRect, out _))
+        {
+            _edgePadSampleRect = canvasRect;
+            if (CloneStatusHint is not null)
+            {
+                bool vertical = canvasRect.Height >= canvasRect.Width * 1.25;
+                CloneStatusHint.Text = vertical
+                    ? "→ Dikey şerit sol/sağ boşluğa uzatılacak"
+                    : "→ Yatay şerit üst/alt boşluğa uzatılacak";
+            }
+        }
+        else
+        {
+            MessageBox.Show(
+                "Örnek şerit için iki nokta veya ince bir dikdörtgen seçin." + Environment.NewLine
+                + "• Dikey şerit → sol ve sağ boşluk" + Environment.NewLine
+                + "• Yatay şerit → üst ve alt boşluk" + Environment.NewLine + Environment.NewLine
+                + "Seçim yapmadan «Kenarları uzat» kutusunu açarsanız fotoğraf kenarı otomatik kullanılır.",
+                "Şeridi kenara uzat",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        ScheduleLivePreview();
+    }
+
+    /// <summary>Seçimi önizleme/şablon tuvali normalize dikdörtgeni olarak alır (klon için).</summary>
+    private bool TryGetSelectionCanvasRect(out NormalizedCropRect canvasRect, out Point destCenter)
+    {
+        canvasRect = null!;
+        destCenter = default;
+
+        if (_pendingCropRect is null && _selectionPins.Count > 0)
+            ApplyPinsToPendingSelection();
+
+        if (_filigramBrushCenterCanvas is { } brush
+            && GetSelectedCloneBrushShape() != TextureCloneBrushShape.Normal)
+        {
+            double rad = GetCloneRadiusNorm();
+            double halfX = Math.Clamp(rad, 0.002, 0.35);
+            double halfY = GetEffectiveFiligramBrushShape() == TextureCloneBrushShape.Ellipse
+                ? halfX * 0.62
+                : halfX;
+            double left = Math.Clamp(brush.X - halfX, 0, 1);
+            double top = Math.Clamp(brush.Y - halfY, 0, 1);
+            canvasRect = new NormalizedCropRect(
+                left, top,
+                Math.Min(1 - left, halfX * 2),
+                Math.Min(1 - top, halfY * 2));
+            destCenter = new Point(brush.X, brush.Y);
+            return true;
+        }
+
+        if (_selectionPins.Count >= 2)
+        {
+            double minX = _selectionPins.Min(p => p.X);
+            double minY = _selectionPins.Min(p => p.Y);
+            double maxX = _selectionPins.Max(p => p.X);
+            double maxY = _selectionPins.Max(p => p.Y);
+            canvasRect = new NormalizedCropRect(
+                minX, minY,
+                Math.Max(0.002, maxX - minX),
+                Math.Max(0.002, maxY - minY));
+            destCenter = new Point((minX + maxX) / 2, (minY + maxY) / 2);
+            return true;
+        }
+
+        if (_selectionPins.Count == 1
+            && GetSelectedCloneBrushShape() != TextureCloneBrushShape.Normal)
+            ApplyPinsToPendingSelection();
+
+        if (_pendingCropRect is { } r)
+        {
+            canvasRect = new NormalizedCropRect(
+                Math.Clamp(r.Left, 0, 1),
+                Math.Clamp(r.Top, 0, 1),
+                Math.Max(0.002, Math.Min(1 - r.Left, r.Width)),
+                Math.Max(0.002, Math.Min(1 - r.Top, r.Height)));
+            destCenter = new Point(r.Left + r.Width / 2, r.Top + r.Height / 2);
+            return true;
+        }
+
+        return false;
     }
 
     private bool TryGetSelectionSourceRect(out NormalizedCropRect sourceRect, out Point destCenter)
@@ -3645,6 +3776,7 @@ public partial class MainWindow : Window
         _watermarkCleanOps.Count > 0
         || _textureCloneOps.Count > 0
         || _selectionPasteOps.Count > 0
+        || _edgePadSampleRect is not null
         || _activeCropRect is not null
         || _pendingCropRect is not null
         || _selectionPins.Count > 0
@@ -3680,6 +3812,7 @@ public partial class MainWindow : Window
         _watermarkCleanOps.Clear();
         _textureCloneOps.Clear();
         _selectionPasteOps.Clear();
+        _edgePadSampleRect = null;
         _activeCropRect = null;
         _pendingCropRect = null;
         _cropUndoStack.Clear();
@@ -3857,8 +3990,10 @@ public partial class MainWindow : Window
 
     private void SetCloneSource(Point canvasNorm)
     {
-        ProductPlacementContext.CanvasNormToSourceNorm(canvasNorm.X, canvasNorm.Y, out double sx, out double sy);
-        _cloneSourceNorm = new Point(sx, sy);
+        // Şablon tuvali uzayı — tamamlanan (siyah/beyaz) alanlara da klonlanabilir
+        _cloneSourceNorm = new Point(
+            Math.Clamp(canvasNorm.X, 0, 1),
+            Math.Clamp(canvasNorm.Y, 0, 1));
         _clonePickSourceNext = false;
         _cloneLastStampNorm = null;
         RefreshCloneButtonsUi();
@@ -3871,11 +4006,12 @@ public partial class MainWindow : Window
         if (_cloneSourceNorm is null)
             return;
 
-        ProductPlacementContext.CanvasNormToSourceNorm(canvasDestNorm.X, canvasDestNorm.Y, out double dx, out double dy);
+        double dx = Math.Clamp(canvasDestNorm.X, 0, 1);
+        double dy = Math.Clamp(canvasDestNorm.Y, 0, 1);
         var src = _cloneSourceNorm.Value;
         double radius = GetCloneRadiusNorm();
 
-        // Aynı noktaya aşırı sık damgayı atla (sürüklerken) — kaynak uzayında
+        // Aynı noktaya aşırı sık damgayı atla (sürüklerken)
         if (_cloneLastStampNorm is { } last)
         {
             double ddx = dx - last.X;
@@ -3919,9 +4055,7 @@ public partial class MainWindow : Window
 
         var origin = LivePreviewImage.TranslatePoint(new Point(0, 0), parent);
         // Zoom/letterbox: yarıçapı ekran pikseline çevir — aksi halde damga seçimden büyük görünür
-        double radiusPx = ProductPlacementContext.HasPlacement
-            ? ProductPlacementContext.SourceRadiusNormToDisplayPx(GetCloneRadiusNorm(), rw)
-            : Math.Max(2, GetCloneRadiusNorm() * Math.Min(rw, rh));
+        double radiusPx = Math.Max(2, GetCloneRadiusNorm() * Math.Min(rw, rh));
         bool filigramContext = showFiligram && !IsCloneStampMode;
         var brushShape = filigramContext
             ? GetEffectiveFiligramBrushShape()
@@ -6242,6 +6376,8 @@ public partial class MainWindow : Window
             ResizeOnly = baseJob.ResizeOnly,
             StretchToExport = baseJob.StretchToExport,
             ResponsiveProductFit = baseJob.ResponsiveProductFit,
+            ExtendTemplateEdges = baseJob.ExtendTemplateEdges,
+            EdgePadSampleRect = baseJob.EdgePadSampleRect,
             JpegQuality = baseJob.JpegQuality,
             SaveAsPng = baseJob.SaveAsPng,
             FileNamePattern = baseJob.FileNamePattern,
