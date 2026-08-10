@@ -19,8 +19,8 @@ public sealed record LivePreviewResult(
 
 public static class TemplatePreviewService
 {
-    /// <summary>Önizleme çalışma üst sınırı — temizleme/klon bu boyutta yapılır (hız).</summary>
-    private const int MaxPreviewWorkLongEdge = 960;
+    /// <summary>Önizleme çalışma / görüntüleme üst sınırı (uzun kenar). Küçültüp geri büyütmek bulanıklaştırır.</summary>
+    private const int MaxPreviewWorkLongEdge = 1600;
 
     public static LivePreviewResult Render(
         IProductTemplate template,
@@ -67,23 +67,20 @@ public static class TemplatePreviewService
 
             try
             {
-                // Filigram/yapıştır kaynakta; hız için geçici küçült. Klon şablon sonrası.
+                // Filigram/yapıştır kaynakta. Küçültünce geri büyütme YOK —
+                // downscale→upscale tüm görüntüyü yumuşatır (klon sonrası bulanıklık).
                 using var preparedSource = sourceImage.CloneAs<Rgba32>();
                 sourceImage.Dispose();
                 sourceImage = null;
 
                 bool photoEdits = cleanOps.Count > 0 || pasteOps.Count > 0;
-                int prepW = preparedSource.Width;
-                int prepH = preparedSource.Height;
-                bool cappedPrep = photoEdits && CapLongEdgeInPlace(preparedSource, MaxPreviewWorkLongEdge);
+                if (photoEdits)
+                    CapLongEdgeInPlace(preparedSource, MaxPreviewWorkLongEdge);
 
                 if (cleanOps.Count > 0)
                     GeminiWatermarkCleaner.ApplyAll(preparedSource, cleanOps, previewFast: true);
                 if (pasteOps.Count > 0)
                     SelectionPasteService.ApplyAll(preparedSource, pasteOps);
-
-                if (cappedPrep)
-                    RestoreSizeInPlace(preparedSource, prepW, prepH);
 
                 bool skipFrame = job.ResizeOnly || template.IsPassthrough;
                 bool stretchToExport = template.StretchToExport && !job.ResizeOnly;
@@ -92,7 +89,7 @@ public static class TemplatePreviewService
                 using var ____ = BrandOverlayDeferContext.Use(deferBrand);
 
                 ImgSize templateSize = skipFrame
-                    ? new ImgSize(srcW, srcH)
+                    ? new ImgSize(preparedSource.Width, preparedSource.Height)
                     : template.ResolveOutputSize(preparedSource.Width, preparedSource.Height);
 
                 Image<Rgba32> frame;
@@ -116,15 +113,16 @@ public static class TemplatePreviewService
                 if (extendEdges)
                     EdgePadFillService.Apply(frame, job.EdgePadSampleRect);
 
+                // Önizleme 0..1 her zaman frame uzayı olsun (klon öncesi/sonrası kayma olmasın)
+                CapLongEdgeInPlace(frame, MaxPreviewWorkLongEdge);
+                templateSize = new ImgSize(frame.Width, frame.Height);
+
                 if (cloneOps.Count > 0)
-                {
-                    int fw = frame.Width;
-                    int fh = frame.Height;
-                    bool cappedClone = CapLongEdgeInPlace(frame, MaxPreviewWorkLongEdge);
                     TextureCloneService.ApplyAll(frame, cloneOps);
-                    if (cappedClone)
-                        RestoreSizeInPlace(frame, fw, fh);
-                }
+
+                // SourceNative pad'i pin/klon koordinatlarını bozmasın — hedef = frame
+                int scaleSrcW = frame.Width;
+                int scaleSrcH = frame.Height;
 
                 using (frame)
                 {
@@ -141,8 +139,8 @@ public static class TemplatePreviewService
                         output = OutputScaler.Apply(
                             withText,
                             exportProfile,
-                            srcW,
-                            srcH,
+                            scaleSrcW,
+                            scaleSrcH,
                             templateSize,
                             stretchToExport);
                         exportW = output.Width;
@@ -159,8 +157,8 @@ public static class TemplatePreviewService
                         output = OutputScaler.Apply(
                             withText,
                             exportProfile,
-                            srcW,
-                            srcH,
+                            scaleSrcW,
+                            scaleSrcH,
                             templateSize,
                             stretchToExport);
                         exportW = output.Width;
@@ -171,8 +169,8 @@ public static class TemplatePreviewService
                         using var scaled = OutputScaler.Apply(
                             frame,
                             exportProfile,
-                            srcW,
-                            srcH,
+                            scaleSrcW,
+                            scaleSrcH,
                             templateSize,
                             stretchToExport);
 
@@ -255,22 +253,9 @@ public static class TemplatePreviewService
         {
             Size = new ImgSize(w, h),
             Mode = ResizeMode.Stretch,
-            Sampler = KnownResamplers.Triangle
+            Sampler = KnownResamplers.Lanczos3
         }));
         return true;
-    }
-
-    private static void RestoreSizeInPlace(Image<Rgba32> image, int width, int height)
-    {
-        if (image.Width == width && image.Height == height)
-            return;
-
-        image.Mutate(ctx => ctx.Resize(new ResizeOptions
-        {
-            Size = new ImgSize(Math.Max(1, width), Math.Max(1, height)),
-            Mode = ResizeMode.Stretch,
-            Sampler = KnownResamplers.Triangle
-        }));
     }
 
     private static Image<Rgba32> ApplyLogoIfNeeded(Image<Rgba32> templated, LogoOverlaySettings logoSettings)

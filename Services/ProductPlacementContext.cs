@@ -50,14 +50,22 @@ public static class ProductPlacementContext
         }
     }
 
-    public static bool CanvasNormToSourceNorm(double cx, double cy, out double sx, out double sy)
+    public static bool CanvasNormToSourceNorm(double cx, double cy, out double sx, out double sy) =>
+        CanvasNormToSourceNorm(cx, cy, out sx, out sy, clampSource: true);
+
+    /// <summary>
+    /// Tuval → kaynak. clampSource=false iken letterbox dışı değerler 0..1 dışına çıkabilir
+    /// (seçim dikdörtgeninin ürün alanıyla kesişimini hesaplamak için).
+    /// </summary>
+    public static bool CanvasNormToSourceNorm(
+        double cx, double cy, out double sx, out double sy, bool clampSource)
     {
         lock (Gate)
         {
             if (!HasPlacement)
             {
-                sx = Math.Clamp(cx, 0, 1);
-                sy = Math.Clamp(cy, 0, 1);
+                sx = clampSource ? Math.Clamp(cx, 0, 1) : cx;
+                sy = clampSource ? Math.Clamp(cy, 0, 1) : cy;
                 return false;
             }
 
@@ -65,8 +73,8 @@ public static class ProductPlacementContext
             double py = Math.Clamp(cy, 0, 1) * (CanvasHeight - 1);
             double u = (px - DestX) / DestWidth;
             double v = (py - DestY) / DestHeight;
-            sx = Math.Clamp(u, 0, 1);
-            sy = Math.Clamp(v, 0, 1);
+            sx = clampSource ? Math.Clamp(u, 0, 1) : u;
+            sy = clampSource ? Math.Clamp(v, 0, 1) : v;
             return u >= -0.02 && u <= 1.02 && v >= -0.02 && v <= 1.02;
         }
     }

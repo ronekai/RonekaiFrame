@@ -233,7 +233,7 @@
                                 <Button x:Name="ClonePickSourceButton" Content="Kaynak al"
                                         Style="{StaticResource SecondaryButton}" Padding="8,4" Margin="0,0,4,0"
                                         MinWidth="108"
-                                        ToolTip="Sonraki sol tık yeni kaynak olur. Sağ tık da kaynağı seçer."
+                                        ToolTip="Pin/şekil seçimi varsa onu kaynak yapar. Yoksa sonraki tık kaynak olur. Sağ tık da kaynağı seçer."
                                         Click="ClonePickSourceButton_Click"/>
                                 <Button x:Name="CloneUndoButton" Content="Klon ↶"
                                         Style="{StaticResource SecondaryButton}" Padding="8,4"
@@ -328,11 +328,11 @@
                             <Button x:Name="SelectionRotateLeftButton" Content="↺"
                                     Style="{StaticResource SecondaryButton}" Padding="8,5" Margin="0,0,2,0"
                                     Click="SelectionRotateLeft_Click" IsEnabled="False"
-                                    ToolTip="Sola döndür (−5°)"/>
+                                    ToolTip="Sola döndür (−5°) · önizlemede tekerlek / Shift+tekerlek 15° / Alt+tekerlek 1°"/>
                             <Button x:Name="SelectionRotateRightButton" Content="↻"
                                     Style="{StaticResource SecondaryButton}" Padding="8,5" Margin="0,0,6,0"
                                     Click="SelectionRotateRight_Click" IsEnabled="False"
-                                    ToolTip="Sağa döndür (+5°)"/>
+                                    ToolTip="Sağa döndür (+5°) · önizlemede tekerlek / Shift+tekerlek 15° / Alt+tekerlek 1°"/>
                             <Button x:Name="CropUndoButton" Content="↶ Geri al"
                                     Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="0,0,6,0"
                                     Click="CropUndo_Click" IsEnabled="False"/>
@@ -368,13 +368,15 @@
                     <Border x:Name="LivePreviewDropZone" Grid.Row="1" Background="#ECEFF4" CornerRadius="8"
                             BorderBrush="#D0D5DE" BorderThickness="1" ClipToBounds="True"
                             AllowDrop="True"
+                            ToolTip="{x:Null}"
+                            ToolTipService.IsEnabled="False"
                             PreviewDragOver="LivePreviewDropZone_DragOver"
                             PreviewDrop="LivePreviewDropZone_Drop"
                             DragOver="LivePreviewDropZone_DragOver"
-                            Drop="LivePreviewDropZone_Drop"
-                            ToolTip="Ürün görseli veya klasör sürükleyip bırakın — yol otomatik bulunur, dosya listesinde seçilir">
+                            Drop="LivePreviewDropZone_Drop">
                         <ScrollViewer x:Name="PreviewScrollViewer"
                                       AllowDrop="True"
+                                      ToolTipService.IsEnabled="False"
                                       PreviewDragOver="LivePreviewDropZone_DragOver"
                                       PreviewDrop="LivePreviewDropZone_Drop"
                                       HorizontalScrollBarVisibility="Auto"
@@ -385,18 +387,22 @@
                                       SizeChanged="PreviewScrollViewer_SizeChanged">
                             <Grid x:Name="PreviewZoomHost" Background="Transparent"
                                   AllowDrop="True"
+                                  ToolTipService.IsEnabled="False"
                                   PreviewDragOver="LivePreviewDropZone_DragOver"
                                   PreviewDrop="LivePreviewDropZone_Drop">
                                 <TextBlock x:Name="PreviewPlaceholderText"
-                                           Text="Önizleme hazırlanıyor…&#x0a;veya ürün görselini buraya sürükleyin"
+                                           Text=""
                                            TextAlignment="Center"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{StaticResource BrandMutedBrush}" FontSize="14"
+                                           Visibility="Collapsed"
                                            IsHitTestVisible="False"/>
                                 <Image x:Name="LivePreviewImage" Stretch="Uniform"
                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                        Margin="8" Visibility="Collapsed"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
                                        AllowDrop="True"
+                                       ToolTipService.IsEnabled="False"
                                        PreviewDragOver="LivePreviewDropZone_DragOver"
                                        PreviewDrop="LivePreviewDropZone_Drop"
                                        MouseLeftButtonDown="LivePreviewImage_MouseLeftButtonDown"

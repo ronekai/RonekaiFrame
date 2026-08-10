@@ -73,6 +73,14 @@ public partial class MainWindow : Window
     private Point? _filigramHoverNorm;
     private bool _clonePickSourceNext;
     private Point? _cloneSourceNorm; // sabit kaynak merkezi (önizleme / şablon tuvali, normalize 0..1)
+    /// <summary>Pin/şekil seçiminden alınan kaynak yama (tuval normalize). Damga bu boyut/alana göre bırakılır.</summary>
+    private NormalizedCropRect? _cloneSourcePatchRect;
+    private double _cloneSourcePatchRotation;
+    private TextureCloneBrushShape _cloneSourcePatchShape = TextureCloneBrushShape.Square;
+    /// <summary>Kaynak al sırasındaki pinler (tuval norm) — klon sırasında pin seçimi olarak çizilir.</summary>
+    private List<Point>? _cloneSourcePins;
+    /// <summary>Pinlerin merkeze göre ofsetleri — hedef hover’da aynı şekli taşımak için.</summary>
+    private List<Point>? _cloneSourcePinOffsets;
     private Point? _cloneHoverNorm;
     private bool _clonePainting;
     private Point? _cloneLastStampNorm;
@@ -91,6 +99,8 @@ public partial class MainWindow : Window
     private List<Point>? _pinsAtCropDragStart;
     private bool _updatingBrushFromPin;
     private SelectionSnapshot? _lastClearedSelection;
+    /// <summary>Seçim / klon fırça şekli dönüşü (derece, saat yönü).</summary>
+    private double _selectionRotationDeg;
 
     private sealed class SelectionSnapshot
     {
@@ -98,6 +108,7 @@ public partial class MainWindow : Window
         public List<Point> Pins { get; init; } = [];
         public Point? FiligramCenter { get; init; }
         public double? BrushSizePct { get; init; }
+        public double RotationDeg { get; init; }
     }
 
     private bool _updatingAppearanceUi;
@@ -2083,7 +2094,8 @@ public partial class MainWindow : Window
             [],
             src,
             GetCloneRadiusNorm(),
-            GetEffectiveFiligramBrushShape()));
+            GetEffectiveFiligramBrushShape(),
+            _selectionRotationDeg));
         // Temizlik sonrası seçim çerçevesi takılı kalmasın — sadece hover kalsın
         _filigramBrushCenterCanvas = null;
         RefreshFiligramCleanButtonUi();
@@ -2114,7 +2126,8 @@ public partial class MainWindow : Window
                 [],
                 CanvasNormToSourcePoint(brushCenter.X, brushCenter.Y),
                 GetCloneRadiusNorm(),
-                brushShape);
+                brushShape,
+                _selectionRotationDeg);
         }
         else if (_selectionPins.Count >= 2)
         {
@@ -2132,18 +2145,13 @@ public partial class MainWindow : Window
                 [],
                 CanvasNormToSourcePoint(pin.X, pin.Y),
                 GetCloneRadiusNorm(),
-                brushShape);
+                brushShape,
+                _selectionRotationDeg);
         }
-        else if (_pendingCropRect is { } rect)
+        else if (_pendingCropRect is { } rect
+                 && TryCanvasRectToSourcePoly(rect, out var rectPoly))
         {
-            var poly = new[]
-            {
-                CanvasNormToSourcePoint(rect.Left, rect.Top),
-                CanvasNormToSourcePoint(rect.Left + rect.Width, rect.Top),
-                CanvasNormToSourcePoint(rect.Left + rect.Width, rect.Top + rect.Height),
-                CanvasNormToSourcePoint(rect.Left, rect.Top + rect.Height)
-            };
-            op = new WatermarkCleanOp(style, poly);
+            op = new WatermarkCleanOp(style, rectPoly);
         }
 
         if (op is null)
@@ -2175,6 +2183,37 @@ public partial class MainWindow : Window
     {
         ProductPlacementContext.CanvasNormToSourceNorm(cx, cy, out double sx, out double sy);
         return new NormalizedPoint(sx, sy);
+    }
+
+    /// <summary>
+    /// Tuval seçim dikdörtgenini kaynak uzayında eksene hizalı çokgene çevirir.
+    /// Letterbox taşmalarında köşeleri 0/1’e ezmez; ürün alanıyla kesişimi alır.
+    /// </summary>
+    private static bool TryCanvasRectToSourcePoly(NormalizedCropRect rect, out NormalizedPoint[] poly)
+    {
+        ProductPlacementContext.CanvasNormToSourceNorm(rect.Left, rect.Top, out double x0, out double y0, clampSource: false);
+        ProductPlacementContext.CanvasNormToSourceNorm(rect.Left + rect.Width, rect.Top, out double x1, out double y1, clampSource: false);
+        ProductPlacementContext.CanvasNormToSourceNorm(rect.Left + rect.Width, rect.Top + rect.Height, out double x2, out double y2, clampSource: false);
+        ProductPlacementContext.CanvasNormToSourceNorm(rect.Left, rect.Top + rect.Height, out double x3, out double y3, clampSource: false);
+
+        double minX = Math.Clamp(Math.Min(Math.Min(x0, x1), Math.Min(x2, x3)), 0, 1);
+        double minY = Math.Clamp(Math.Min(Math.Min(y0, y1), Math.Min(y2, y3)), 0, 1);
+        double maxX = Math.Clamp(Math.Max(Math.Max(x0, x1), Math.Max(x2, x3)), 0, 1);
+        double maxY = Math.Clamp(Math.Max(Math.Max(y0, y1), Math.Max(y2, y3)), 0, 1);
+        if (maxX - minX < 0.001 || maxY - minY < 0.001)
+        {
+            poly = [];
+            return false;
+        }
+
+        poly =
+        [
+            new NormalizedPoint(minX, minY),
+            new NormalizedPoint(maxX, minY),
+            new NormalizedPoint(maxX, maxY),
+            new NormalizedPoint(minX, maxY)
+        ];
+        return true;
     }
 
     private Point SourceNormToCanvasPoint(Point sourceNorm)
@@ -3055,11 +3094,20 @@ public partial class MainWindow : Window
             SelectionPasteButton.Content = _floatingPasteActive ? "Bırak ✓" : "Bırak / Döndür";
         }
         if (SelectionRotateLeftButton is not null)
-            SelectionRotateLeftButton.IsEnabled = _floatingPasteActive;
+            SelectionRotateLeftButton.IsEnabled = _floatingPasteActive || HasRotatableSelection();
         if (SelectionRotateRightButton is not null)
-            SelectionRotateRightButton.IsEnabled = _floatingPasteActive;
+            SelectionRotateRightButton.IsEnabled = _floatingPasteActive || HasRotatableSelection();
         SyncCropPxBoxesFromPending();
     }
+
+    private bool HasRotatableSelection() =>
+        _floatingPasteActive
+        || _pendingCropRect is not null
+        || _filigramBrushCenterCanvas is not null
+        || _selectionPins.Count >= 1
+        || IsCloneStampMode
+        || IsFiligramBrushMode
+        || IsPinShapedSelectionMode;
 
     private bool TryCaptureSelectionSnapshot(out SelectionSnapshot snapshot)
     {
@@ -3077,7 +3125,8 @@ public partial class MainWindow : Window
             Pending = _pendingCropRect,
             Pins = _selectionPins.Select(p => new Point(p.X, p.Y)).ToList(),
             FiligramCenter = _filigramBrushCenterCanvas,
-            BrushSizePct = CloneBrushSizeSlider?.Value
+            BrushSizePct = CloneBrushSizeSlider?.Value,
+            RotationDeg = _selectionRotationDeg
         };
         return true;
     }
@@ -3095,14 +3144,21 @@ public partial class MainWindow : Window
     {
         if (_lastClearedSelection is null)
             return;
+        RestoreSelectionSnapshot(_lastClearedSelection, rememberAsLast: false);
+    }
 
-        var snap = _lastClearedSelection;
+    private void RestoreSelectionSnapshot(SelectionSnapshot snap, bool rememberAsLast)
+    {
+        if (rememberAsLast)
+            _lastClearedSelection = snap;
+
         _selectionPins.Clear();
         foreach (var p in snap.Pins)
             _selectionPins.Add(p);
 
         _pendingCropRect = snap.Pending;
         _filigramBrushCenterCanvas = snap.FiligramCenter;
+        _selectionRotationDeg = snap.RotationDeg;
         if (snap.BrushSizePct is double pct && CloneBrushSizeSlider is not null)
         {
             _updatingBrushFromPin = true;
@@ -3165,16 +3221,25 @@ public partial class MainWindow : Window
         ScheduleLivePreview();
     }
 
-    /// <summary>Seçimin içini kaynak görselde temizler (dış çerçeve kalır).</summary>
+    /// <summary>Seçimin içini kaynak görselde temizler (dış çerçeve ve seçim korunur).</summary>
     private void CropInterior_Click(object sender, RoutedEventArgs e)
     {
-        var style = GetSelectedFiligramCleanStyle();
-        // Bulut stili iç kesimde zayıf kalır — doku eşle varsayılanı
-        if (style == WatermarkCleanStyle.Cloud)
-            style = WatermarkCleanStyle.TextureFill;
+        // Yumuşak/bulut stilleri seçim dışına taşır; iç kesimde net doldurma kullan
+        var selected = GetSelectedFiligramCleanStyle();
+        var style = selected switch
+        {
+            WatermarkCleanStyle.Block => WatermarkCleanStyle.Block,
+            WatermarkCleanStyle.SharpEdge => WatermarkCleanStyle.SharpEdge,
+            WatermarkCleanStyle.TextureFill => WatermarkCleanStyle.TextureFill,
+            _ => WatermarkCleanStyle.TextureFill
+        };
 
+        // Seçimi koru — op üretimi pin→bbox yan etkisi yaparsa geri yükle
+        TryCaptureSelectionSnapshot(out var before);
         if (!TryBuildSelectionCleanOp(style, out var op) || op is null)
         {
+            if (before is not null)
+                RestoreSelectionSnapshot(before, rememberAsLast: false);
             MessageBox.Show(
                 "İçini kırmak için önce bir seçim yapın (dikdörtgen, pin veya şekil).",
                 "İçini kırp",
@@ -3183,9 +3248,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (before is not null)
+            RestoreSelectionSnapshot(before, rememberAsLast: false);
+
         _watermarkCleanOps.Add(op);
         RefreshFiligramCleanButtonUi();
         UpdateCropUi();
+        RefreshPendingCropOverlay();
         ScheduleLivePreview();
     }
 
@@ -3415,10 +3484,68 @@ public partial class MainWindow : Window
     }
 
     private void SelectionRotateLeft_Click(object sender, RoutedEventArgs e) =>
-        NudgeFloatingPasteRotation(-5);
+        NudgeActiveRotation(-5);
 
     private void SelectionRotateRight_Click(object sender, RoutedEventArgs e) =>
-        NudgeFloatingPasteRotation(+5);
+        NudgeActiveRotation(+5);
+
+    private void NudgeActiveRotation(double deltaDeg)
+    {
+        if (_floatingPasteActive)
+        {
+            NudgeFloatingPasteRotation(deltaDeg);
+            return;
+        }
+
+        NudgeSelectionRotation(deltaDeg);
+    }
+
+    private static double NormalizeAngleDeg(double deg)
+    {
+        deg %= 360;
+        if (deg > 180) deg -= 360;
+        if (deg <= -180) deg += 360;
+        return deg;
+    }
+
+    private void NudgeSelectionRotation(double deltaDeg)
+    {
+        if (!HasRotatableSelection() && !IsCloneStampMode && !IsFiligramBrushMode)
+            return;
+
+        // 2+ pin: çokgeni merkez etrafında döndür (geometri güncellenir)
+        if (_selectionPins.Count >= 2)
+        {
+            double cx = _selectionPins.Average(p => p.X);
+            double cy = _selectionPins.Average(p => p.Y);
+            double rad = deltaDeg * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+            for (int i = 0; i < _selectionPins.Count; i++)
+            {
+                var p = _selectionPins[i];
+                double dx = p.X - cx;
+                double dy = p.Y - cy;
+                _selectionPins[i] = new Point(
+                    Math.Clamp(cx + dx * cos - dy * sin, 0, 1),
+                    Math.Clamp(cy + dx * sin + dy * cos, 0, 1));
+            }
+            ApplyPinsToPendingSelection();
+            RefreshPinOverlay();
+        }
+
+        _selectionRotationDeg = NormalizeAngleDeg(_selectionRotationDeg + deltaDeg);
+        RefreshCloneOverlay();
+        RefreshFiligramBrushOverlay();
+        RefreshPendingCropOverlay();
+        UpdateCropUi();
+
+        if (CloneStatusHint is not null
+            && (IsCloneStampMode || IsPinSelectMode || IsFiligramBrushMode || _pendingCropRect is not null))
+        {
+            CloneStatusHint.Text = $"∠ {_selectionRotationDeg:0}° · tekerlek = döndür (Shift: 15°)";
+        }
+    }
 
     private void CopyCurrentSelectionToClipboard()
     {
@@ -3683,10 +3810,10 @@ public partial class MainWindow : Window
 
         if (_selectionPins.Count >= 2)
         {
-            var poly = _selectionPins
+            var pinPoly = _selectionPins
                 .Select(p => CanvasNormToSourcePoint(p.X, p.Y))
                 .ToList();
-            op = new WatermarkCleanOp(style, poly);
+            op = new WatermarkCleanOp(style, pinPoly);
             return true;
         }
 
@@ -3699,7 +3826,8 @@ public partial class MainWindow : Window
                 [],
                 CanvasNormToSourcePoint(pin.X, pin.Y),
                 GetCloneRadiusNorm(),
-                brushShape);
+                brushShape,
+                _selectionRotationDeg);
             return true;
         }
 
@@ -3711,22 +3839,16 @@ public partial class MainWindow : Window
                 [],
                 CanvasNormToSourcePoint(brushCenter.X, brushCenter.Y),
                 GetCloneRadiusNorm(),
-                brushShape);
+                brushShape,
+                _selectionRotationDeg);
             return true;
         }
 
         if (_pendingCropRect is null && _selectionPins.Count > 0)
             ApplyPinsToPendingSelection();
 
-        if (_pendingCropRect is { } rect)
+        if (_pendingCropRect is { } rect && TryCanvasRectToSourcePoly(rect, out var poly))
         {
-            var poly = new[]
-            {
-                CanvasNormToSourcePoint(rect.Left, rect.Top),
-                CanvasNormToSourcePoint(rect.Left + rect.Width, rect.Top),
-                CanvasNormToSourcePoint(rect.Left + rect.Width, rect.Top + rect.Height),
-                CanvasNormToSourcePoint(rect.Left, rect.Top + rect.Height)
-            };
             op = new WatermarkCleanOp(style, poly);
             return true;
         }
@@ -3764,6 +3886,7 @@ public partial class MainWindow : Window
         _filigramBrushCenterCanvas = null;
         _filigramHoverNorm = null;
         ClearSelectionPins();
+        ResetSelectionRotation();
         CancelCropDrag();
         UpdateCropUi();
         SetCropOverlay(null);
@@ -3817,6 +3940,7 @@ public partial class MainWindow : Window
         _pendingCropRect = null;
         _cropUndoStack.Clear();
         ClearSelectionPins();
+        ResetSelectionRotation();
         CancelCropDrag();
         ClearPendingWhiteSelection();
         CancelFloatingPaste(clearCopy: true);
@@ -3828,6 +3952,8 @@ public partial class MainWindow : Window
         _filigramBrushMode = false;
 
         _cloneSourceNorm = null;
+        _cloneSourcePatchRect = null;
+        ClearCloneSourcePinGeometry();
         _clonePickSourceNext = false;
         _cloneHoverNorm = null;
         _clonePainting = false;
@@ -3907,16 +4033,222 @@ public partial class MainWindow : Window
 
     private void ClonePickSourceButton_Click(object sender, RoutedEventArgs e)
     {
+        // Pin / şekil / dikdörtgen seçimi varsa doğrudan kaynak yama yap
+        if (TryApplyCloneSourceFromCurrentSelection())
+            return;
+
+        // Seçim varken alan oluşmadıysa (ör. tek Normal pin) kullanıcıyı bilgilendir
+        if (_selectionPins.Count > 0 || _pendingCropRect is not null || _filigramBrushCenterCanvas is not null)
+        {
+            MessageBox.Show(
+                "Kaynak almak için seçim alanı gerekli:" + Environment.NewLine
+                + "• Şekil (kare/daire/elips) + pin, veya" + Environment.NewLine
+                + "• En az 2 pin, veya" + Environment.NewLine
+                + "• Dikdörtgen sürükleme seçimi" + Environment.NewLine + Environment.NewLine
+                + "Sonra tekrar «Kaynak al»a basın.",
+                "Kaynak al",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        _cloneSourcePatchRect = null;
         if (!IsCloneStampMode)
             CloneStampModeToggle.IsChecked = true;
 
-        // Yeniden kaynak: her zaman sonraki sol tık (veya sağ tık) yeni kaynak olur.
-        // Seçim merkezine otomatik bağlamayız — aksi halde hep ilk kaynak kalıyordu.
         _clonePickSourceNext = true;
+        ClearCloneSourcePinGeometry();
         RefreshCloneButtonsUi();
         RefreshSelectionOverlaysAfterModeChange();
         if (CloneStatusHint is not null)
             CloneStatusHint.Text = "→ Yeni kaynak noktasına tıkla (sağ tık da olur)";
+    }
+
+    private void ClearCloneSourcePinGeometry()
+    {
+        _cloneSourcePins = null;
+        _cloneSourcePinOffsets = null;
+    }
+
+    private void CaptureCloneSourcePinGeometry()
+    {
+        // 3+ pin: dışbükey zarf (bowtie / yanlış sıra → bozuk üçgen kesiti önler)
+        if (_selectionPins.Count >= 3)
+        {
+            _cloneSourcePins = ConvexHullNorm(_selectionPins);
+        }
+        // Döndürülmüş dikdörtgen seçim: görünen 4 köşeyi pin gibi sakla
+        else if (_pendingCropRect is { } rect && Math.Abs(_selectionRotationDeg) > 0.5)
+        {
+            double cx = rect.Left + rect.Width / 2;
+            double cy = rect.Top + rect.Height / 2;
+            double hw = rect.Width / 2;
+            double hh = rect.Height / 2;
+            double rad = _selectionRotationDeg * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+            (double ox, double oy)[] local = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)];
+            _cloneSourcePins = local
+                .Select(p => new Point(
+                    Math.Clamp(cx + p.ox * cos - p.oy * sin, 0, 1),
+                    Math.Clamp(cy + p.ox * sin + p.oy * cos, 0, 1)))
+                .ToList();
+        }
+        else if (_selectionPins.Count == 2)
+        {
+            _cloneSourcePins = _selectionPins.Select(p => new Point(p.X, p.Y)).ToList();
+        }
+        else
+        {
+            ClearCloneSourcePinGeometry();
+            return;
+        }
+
+        double pcx = _cloneSourcePins.Average(p => p.X);
+        double pcy = _cloneSourcePins.Average(p => p.Y);
+        _cloneSourcePinOffsets = _cloneSourcePins
+            .Select(p => new Point(p.X - pcx, p.Y - pcy))
+            .ToList();
+
+        double minX = _cloneSourcePins.Min(p => p.X);
+        double minY = _cloneSourcePins.Min(p => p.Y);
+        double maxX = _cloneSourcePins.Max(p => p.X);
+        double maxY = _cloneSourcePins.Max(p => p.Y);
+        _cloneSourcePatchRect = ClampNormRect(
+            minX, minY,
+            Math.Max(0.002, maxX - minX),
+            Math.Max(0.002, maxY - minY));
+    }
+
+    /// <summary>Normalize pinlerden monotone-chain dışbükey zarf (CCW).</summary>
+    private static List<Point> ConvexHullNorm(IReadOnlyList<Point> pins)
+    {
+        if (pins.Count < 3)
+            return pins.Select(p => new Point(p.X, p.Y)).ToList();
+
+        var pts = pins
+            .Select(p => new Point(p.X, p.Y))
+            .OrderBy(p => p.X)
+            .ThenBy(p => p.Y)
+            .ToList();
+
+        static double Cross(Point o, Point a, Point b) =>
+            (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
+
+        var lower = new List<Point>(pts.Count);
+        foreach (var p in pts)
+        {
+            while (lower.Count >= 2 && Cross(lower[^2], lower[^1], p) <= 0)
+                lower.RemoveAt(lower.Count - 1);
+            lower.Add(p);
+        }
+
+        var upper = new List<Point>(pts.Count);
+        for (int i = pts.Count - 1; i >= 0; i--)
+        {
+            var p = pts[i];
+            while (upper.Count >= 2 && Cross(upper[^2], upper[^1], p) <= 0)
+                upper.RemoveAt(upper.Count - 1);
+            upper.Add(p);
+        }
+
+        lower.RemoveAt(lower.Count - 1);
+        upper.RemoveAt(upper.Count - 1);
+        lower.AddRange(upper);
+        return lower.Count >= 3 ? lower : pins.Select(p => new Point(p.X, p.Y)).ToList();
+    }
+
+    /// <summary>
+    /// Aktif pin/şekil/dikdörtgen seçimini klon kaynağı + yama boyutu yapar.
+    /// Damga, bu seçim alanının kopyasını hedefe bırakır.
+    /// </summary>
+    private bool TryApplyCloneSourceFromCurrentSelection()
+    {
+        if (_pendingCropRect is null && _selectionPins.Count > 0)
+            ApplyPinsToPendingSelection();
+
+        // Şekilli tek pin: alan zorunlu (pinleri silmeden)
+        if (_pendingCropRect is null
+            && _selectionPins.Count == 1
+            && GetSelectedCloneBrushShape() != TextureCloneBrushShape.Normal)
+        {
+            ApplyPinsToPendingSelection();
+        }
+
+        if (_pendingCropRect is null
+            && _filigramBrushCenterCanvas is { } brush
+            && GetSelectedCloneBrushShape() != TextureCloneBrushShape.Normal
+            && _selectionPins.Count == 0)
+        {
+            // Fırça merkezi var, pin yok — şekil alanını kur (pin temizlemeden)
+            double r = GetCloneRadiusNorm();
+            double halfX = Math.Clamp(r, 0.002, 0.35);
+            double halfY = GetEffectiveFiligramBrushShape() == TextureCloneBrushShape.Ellipse
+                ? halfX * 0.62
+                : halfX;
+            _pendingCropRect = ClampNormRect(brush.X - halfX, brush.Y - halfY, halfX * 2, halfY * 2);
+        }
+
+        if (_pendingCropRect is not { } rect)
+            return false;
+
+        double cx = rect.Left + rect.Width / 2;
+        double cy = rect.Top + rect.Height / 2;
+        var center = new Point(cx, cy);
+
+        double half = Math.Max(rect.Width, rect.Height) / 2.0;
+        half = Math.Clamp(half, 0.002, 0.20);
+        if (CloneBrushSizeSlider is not null)
+        {
+            _updatingBrushFromPin = true;
+            CloneBrushSizeSlider.Value = Math.Clamp(
+                half * 100.0,
+                CloneBrushSizeSlider.Minimum,
+                CloneBrushSizeSlider.Maximum);
+            _updatingBrushFromPin = false;
+        }
+
+        _cloneSourcePatchRect = rect;
+        _cloneSourcePatchRotation = _selectionRotationDeg;
+        _cloneSourcePatchShape = GetSelectedCloneBrushShape() == TextureCloneBrushShape.Normal
+            ? TextureCloneBrushShape.Square
+            : GetEffectiveCloneStampShape();
+        CaptureCloneSourcePinGeometry();
+        // Pin / döndürülmüş seçim: merkez = centroid (AABB değil — overlay ile aynı)
+        if (_cloneSourcePins is { Count: >= 2 })
+        {
+            center = new Point(
+                _cloneSourcePins.Average(p => p.X),
+                _cloneSourcePins.Average(p => p.Y));
+            if (_cloneSourcePatchRect is { } pinRect)
+                rect = pinRect;
+        }
+        else if (_cloneSourcePatchRect is { } pinRect)
+        {
+            rect = pinRect;
+            center = new Point(rect.Left + rect.Width / 2, rect.Top + rect.Height / 2);
+        }
+
+        SetCloneSource(center);
+        _clonePickSourceNext = false;
+
+        if (!IsCloneStampMode)
+            CloneStampModeToggle.IsChecked = true;
+
+        _clonePickSourceNext = false;
+        RefreshCloneButtonsUi();
+        RefreshPinOverlay();
+        RefreshCloneOverlay();
+
+        if (CloneStatusHint is not null)
+        {
+            CloneStatusHint.Text = _cloneSourcePins is { Count: >= 2 }
+                ? $"→ Kaynak = pin seçimi ({_cloneSourcePins.Count} pin) · hedefe tıkla"
+                : Math.Abs(_cloneSourcePatchRotation) > 0.5
+                    ? $"→ Kaynak = seçim yaması (∠ {_cloneSourcePatchRotation:0}°) · hedefe tıkla"
+                    : "→ Kaynak = seçim yaması · hedefe tıkla / sürükle";
+        }
+        return true;
     }
 
     private void CloneBrushSizeSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -3945,6 +4277,8 @@ public partial class MainWindow : Window
     {
         _textureCloneOps.Clear();
         _cloneSourceNorm = null;
+        _cloneSourcePatchRect = null;
+        ClearCloneSourcePinGeometry();
         _clonePickSourceNext = false;
         _cloneHoverNorm = null;
         _clonePainting = false;
@@ -3981,6 +4315,10 @@ public partial class MainWindow : Window
                 CloneStatusHint.Text = "";
             else if (_cloneSourceNorm is null || _clonePickSourceNext)
                 CloneStatusHint.Text = "→ Kaynak seç (sol tık)";
+            else if (_cloneSourcePatchRect is not null)
+                CloneStatusHint.Text = _cloneSourcePins is { Count: >= 2 }
+                    ? $"→ Kaynak = pin seçimi ({_cloneSourcePins.Count}) · hedefe tıkla"
+                    : "→ Kaynak = seçim yaması · hedefe tıkla / sürükle";
             else
                 CloneStatusHint.Text = "→ Hedefe tıkla / sürükle · sağ tık = yeni kaynak";
         }
@@ -3996,6 +4334,8 @@ public partial class MainWindow : Window
             Math.Clamp(canvasNorm.Y, 0, 1));
         _clonePickSourceNext = false;
         _cloneLastStampNorm = null;
+        // Nokta tıklamasıyla kaynak: seçim yamasını temizle (yalnızca merkez)
+        // Seçimden gelen SetCloneSource sonrası patch ayrıca set edilir
         RefreshCloneButtonsUi();
         RefreshCloneOverlay();
         UpdateCropUi();
@@ -4009,14 +4349,83 @@ public partial class MainWindow : Window
         double dx = Math.Clamp(canvasDestNorm.X, 0, 1);
         double dy = Math.Clamp(canvasDestNorm.Y, 0, 1);
         var src = _cloneSourceNorm.Value;
-        double radius = GetCloneRadiusNorm();
+
+        // Seçim yaması varsa: bire bir aynı alanı hedefe kopyala
+        if (_cloneSourcePatchRect is { } patch)
+        {
+            double minDist = Math.Max(patch.Width, patch.Height) * 0.2;
+            if (_cloneLastStampNorm is { } lastPatch)
+            {
+                double ddx = dx - lastPatch.X;
+                double ddy = dy - lastPatch.Y;
+                if (ddx * ddx + ddy * ddy < minDist * minDist)
+                    return;
+            }
+
+            IReadOnlyList<NormalizedPoint>? poly = null;
+            // 3+ pin: seçim çokgeni bire bir (AABB dikdörtgen değil)
+            if (_cloneSourcePins is { Count: >= 3 } srcPins)
+            {
+                poly = srcPins.Select(p => new NormalizedPoint(p.X, p.Y)).ToList();
+                double minX = srcPins.Min(p => p.X);
+                double minY = srcPins.Min(p => p.Y);
+                double maxX = srcPins.Max(p => p.X);
+                double maxY = srcPins.Max(p => p.Y);
+                patch = ClampNormRect(
+                    minX, minY,
+                    Math.Max(0.002, maxX - minX),
+                    Math.Max(0.002, maxY - minY));
+            }
+            else if (_cloneSourcePinOffsets is { Count: >= 3 } offs && _cloneSourceNorm is { } srcC)
+            {
+                poly = offs
+                    .Select(o => new NormalizedPoint(
+                        Math.Clamp(srcC.X + o.X, 0, 1),
+                        Math.Clamp(srcC.Y + o.Y, 0, 1)))
+                    .ToList();
+                double minX = poly.Min(p => p.X);
+                double minY = poly.Min(p => p.Y);
+                double maxX = poly.Max(p => p.X);
+                double maxY = poly.Max(p => p.Y);
+                patch = ClampNormRect(
+                    minX, minY,
+                    Math.Max(0.002, maxX - minX),
+                    Math.Max(0.002, maxY - minY));
+            }
+
+            // Damga: ExactCopy seçim centroid'ini tıklanan noktaya hizalar
+            // FillRect verme — yumuşak dikdörtgen nakline düşmesin
+            double radius = Math.Clamp(Math.Max(patch.Width, patch.Height) / 2, 0.002, 0.25);
+            var shape = _cloneSourcePatchShape == TextureCloneBrushShape.Normal
+                ? TextureCloneBrushShape.Square
+                : _cloneSourcePatchShape;
+
+            _textureCloneOps.Add(new TextureCloneOp(
+                new NormalizedPoint(src.X, src.Y),
+                new NormalizedPoint(dx, dy),
+                radius,
+                shape,
+                FillRect: null,
+                RotationDegrees: poly is { Count: >= 3 } ? 0 : _cloneSourcePatchRotation,
+                ExactCopy: true,
+                SourceRect: patch,
+                SourcePolygon: poly));
+            _cloneLastStampNorm = new Point(dx, dy);
+            RefreshCloneButtonsUi();
+            RefreshCloneOverlay();
+            if (!deferPreview)
+                ScheduleLivePreview();
+            return;
+        }
+
+        double radiusPt = GetCloneRadiusNorm();
 
         // Aynı noktaya aşırı sık damgayı atla (sürüklerken)
         if (_cloneLastStampNorm is { } last)
         {
             double ddx = dx - last.X;
             double ddy = dy - last.Y;
-            double minDist = radius * 0.35;
+            double minDist = radiusPt * 0.35;
             if (ddx * ddx + ddy * ddy < minDist * minDist)
                 return;
         }
@@ -4024,8 +4433,10 @@ public partial class MainWindow : Window
         _textureCloneOps.Add(new TextureCloneOp(
             new NormalizedPoint(src.X, src.Y),
             new NormalizedPoint(dx, dy),
-            radius,
-            GetEffectiveCloneStampShape()));
+            radiusPt,
+            GetEffectiveCloneStampShape(),
+            FillRect: null,
+            RotationDegrees: _selectionRotationDeg));
         _cloneLastStampNorm = new Point(dx, dy);
         RefreshCloneButtonsUi();
         RefreshCloneOverlay();
@@ -4055,15 +4466,31 @@ public partial class MainWindow : Window
 
         var origin = LivePreviewImage.TranslatePoint(new Point(0, 0), parent);
         // Zoom/letterbox: yarıçapı ekran pikseline çevir — aksi halde damga seçimden büyük görünür
-        double radiusPx = Math.Max(2, GetCloneRadiusNorm() * Math.Min(rw, rh));
+        double radiusNormForOverlay = _cloneSourcePatchRect is { } pr
+            ? Math.Max(pr.Width, pr.Height) / 2
+            : GetCloneRadiusNorm();
+        double radiusPx = Math.Max(2, radiusNormForOverlay * Math.Min(rw, rh));
         bool filigramContext = showFiligram && !IsCloneStampMode;
         var brushShape = filigramContext
             ? GetEffectiveFiligramBrushShape()
-            : GetEffectiveCloneStampShape();
+            : (_cloneSourcePatchRect is not null
+                ? (_cloneSourcePatchShape == TextureCloneBrushShape.Normal
+                    ? TextureCloneBrushShape.Square
+                    : _cloneSourcePatchShape)
+                : GetEffectiveCloneStampShape());
         bool isNormalMarquee = GetSelectedCloneBrushShape() == TextureCloneBrushShape.Normal && filigramContext;
         double brushH = brushShape == TextureCloneBrushShape.Ellipse ? radiusPx * 2 * 0.62 : radiusPx * 2;
         double brushW = radiusPx * 2;
+        // Seçim yaması varsa damga çerçevesini tam yama boyutunda göster
+        if (_cloneSourcePatchRect is { } patchSize && !filigramContext)
+        {
+            brushW = Math.Max(4, patchSize.Width * rw);
+            brushH = Math.Max(4, patchSize.Height * rh);
+        }
         double thinStroke = isNormalMarquee ? 1.15 : 1.35;
+        double overlayRotation = _cloneSourcePatchRect is not null
+            ? _cloneSourcePatchRotation
+            : _selectionRotationDeg;
 
         void AddBrushRing(Point n, Color stroke, Color fill, double thickness)
         {
@@ -4117,7 +4544,12 @@ public partial class MainWindow : Window
                 }
             };
             Canvas.SetLeft(ring, cx - brushW / 2);
-            Canvas.SetTop(ring, cy - (brushShape == TextureCloneBrushShape.Ellipse ? brushH / 2 : brushW / 2));
+            Canvas.SetTop(ring, cy - brushH / 2);
+            if (Math.Abs(overlayRotation) > 0.01)
+            {
+                ring.RenderTransformOrigin = new Point(0.5, 0.5);
+                ring.RenderTransform = new RotateTransform(overlayRotation);
+            }
             PreviewCloneCanvas.Children.Add(ring);
 
             // İnce merkez artı (nokta yerine daha net)
@@ -4136,6 +4568,85 @@ public partial class MainWindow : Window
             PreviewCloneCanvas.Children.Add(vLine);
         }
 
+        void AddPinSelectionShape(
+            IReadOnlyList<Point> canvasNormPts,
+            Color stroke,
+            Color fill,
+            double thickness)
+        {
+            if (canvasNormPts.Count < 2)
+                return;
+
+            var screenPts = new PointCollection();
+            foreach (var p in canvasNormPts)
+            {
+                screenPts.Add(new Point(
+                    origin.X + ox + Math.Clamp(p.X, 0, 1) * rw,
+                    origin.Y + oy + Math.Clamp(p.Y, 0, 1) * rh));
+            }
+
+            if (canvasNormPts.Count == 2)
+            {
+                PreviewCloneCanvas.Children.Add(new System.Windows.Shapes.Line
+                {
+                    X1 = screenPts[0].X,
+                    Y1 = screenPts[0].Y,
+                    X2 = screenPts[1].X,
+                    Y2 = screenPts[1].Y,
+                    Stroke = new SolidColorBrush(stroke),
+                    StrokeThickness = Math.Max(3, thickness + 2),
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    IsHitTestVisible = false
+                });
+            }
+            else
+            {
+                PreviewCloneCanvas.Children.Add(new Polygon
+                {
+                    Points = screenPts,
+                    Fill = new SolidColorBrush(fill),
+                    Stroke = new SolidColorBrush(stroke),
+                    StrokeThickness = thickness,
+                    StrokeDashArray = new DoubleCollection { 3, 2 },
+                    IsHitTestVisible = false
+                });
+            }
+
+            // Pin noktaları
+            for (int i = 0; i < screenPts.Count; i++)
+            {
+                double px = screenPts[i].X;
+                double py = screenPts[i].Y;
+                var dot = new Ellipse
+                {
+                    Width = 10,
+                    Height = 10,
+                    Fill = new SolidColorBrush(stroke),
+                    Stroke = Brushes.White,
+                    StrokeThickness = 1.2,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(dot, px - 5);
+                Canvas.SetTop(dot, py - 5);
+                PreviewCloneCanvas.Children.Add(dot);
+            }
+        }
+
+        List<Point> PinsAtCenter(Point center)
+        {
+            if (_cloneSourcePinOffsets is null || _cloneSourcePinOffsets.Count == 0)
+                return [];
+            return _cloneSourcePinOffsets
+                .Select(o => new Point(
+                    Math.Clamp(center.X + o.X, 0, 1),
+                    Math.Clamp(center.Y + o.Y, 0, 1)))
+                .ToList();
+        }
+
+        bool pinSelectionClone = _cloneSourcePins is { Count: >= 2 }
+                                 && _cloneSourcePinOffsets is { Count: >= 2 };
+
         // Filigram fırça (mor) — şekil + boyut
         if (showFiligram && !IsCloneStampMode)
         {
@@ -4151,22 +4662,53 @@ public partial class MainWindow : Window
             }
         }
 
+        // Kilitli kaynak: pin seçimi olarak göster
+        if (_cloneSourceNorm is not null && _cloneSourcePatchRect is not null && !filigramContext)
+        {
+            if (pinSelectionClone && _cloneSourcePins is { } srcPins)
+            {
+                AddPinSelectionShape(
+                    srcPins,
+                    Color.FromArgb(230, 40, 180, 70),
+                    Color.FromArgb(50, 40, 180, 70),
+                    1.8);
+            }
+            else
+            {
+                AddBrushRing(_cloneSourceNorm.Value,
+                    Color.FromArgb(230, 40, 180, 70),
+                    Color.FromArgb(36, 40, 180, 70),
+                    thinStroke + 0.4);
+            }
+        }
+
         if (_cloneHoverNorm is { } onlyHover && IsCloneStampMode && (_cloneSourceNorm is null || _clonePickSourceNext))
         {
             AddBrushRing(onlyHover,
                 Color.FromArgb(230, 40, 180, 70),
                 Color.FromArgb(28, 40, 180, 70),
                 thinStroke);
-                // Label eklemiyoruz; sadece şekil/çerçeve göstergesi yeterli
             return;
         }
 
+        // Hedef hover: pin seçiminin aynı şeklini taşı
         if (_cloneHoverNorm is { } bc && IsCloneStampMode && _cloneSourceNorm is not null && !_clonePickSourceNext)
         {
-            AddBrushRing(bc,
-                Color.FromArgb(230, 255, 140, 0),
-                Color.FromArgb(28, 255, 140, 0),
-                thinStroke);
+            if (pinSelectionClone)
+            {
+                AddPinSelectionShape(
+                    PinsAtCenter(bc),
+                    Color.FromArgb(230, 255, 140, 0),
+                    Color.FromArgb(45, 255, 140, 0),
+                    1.8);
+            }
+            else
+            {
+                AddBrushRing(bc,
+                    Color.FromArgb(230, 255, 140, 0),
+                    Color.FromArgb(28, 255, 140, 0),
+                    thinStroke);
+            }
         }
     }
 
@@ -4213,6 +4755,7 @@ public partial class MainWindow : Window
         _filigramBrushCenterCanvas = null;
         _filigramHoverNorm = null;
         _pendingCropRect = null;
+        ResetSelectionRotation();
         SetCropOverlay(null);
         RefreshCloneOverlay();
         UpdateCropUi();
@@ -4224,6 +4767,11 @@ public partial class MainWindow : Window
         RefreshPinOverlay();
         RefreshPinButtonsUi();
         RefreshCloneOverlay();
+    }
+
+    private void ResetSelectionRotation()
+    {
+        _selectionRotationDeg = 0;
     }
 
     private void RefreshPinButtonsUi()
@@ -4547,6 +5095,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Seçim / pin / klon / filigram şekli: tekerlek = açı (Ctrl = zoom)
+        if (Keyboard.Modifiers != ModifierKeys.Control
+            && (HasRotatableSelection() || IsCloneStampMode || IsFiligramBrushMode || IsPinSelectMode))
+        {
+            e.Handled = true;
+            double step = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
+                ? 15
+                : (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt ? 1 : 5;
+            NudgeSelectionRotation(e.Delta > 0 ? -step : step);
+            return;
+        }
+
         if (Keyboard.Modifiers != ModifierKeys.Control)
             return;
 
@@ -4764,6 +5324,7 @@ public partial class MainWindow : Window
         if (rect is null)
         {
             PreviewCropSelectionRect.Visibility = Visibility.Collapsed;
+            PreviewCropSelectionRect.RenderTransform = Transform.Identity;
             return;
         }
 
@@ -4781,6 +5342,10 @@ public partial class MainWindow : Window
         PreviewCropSelectionRect.Margin = new Thickness(left, top, 0, 0);
         PreviewCropSelectionRect.Width = Math.Max(2, rect.Width * renderedW);
         PreviewCropSelectionRect.Height = Math.Max(2, rect.Height * renderedH);
+        PreviewCropSelectionRect.RenderTransformOrigin = new Point(0.5, 0.5);
+        PreviewCropSelectionRect.RenderTransform = Math.Abs(_selectionRotationDeg) > 0.01
+            ? new RotateTransform(_selectionRotationDeg)
+            : Transform.Identity;
     }
 
     private void RefreshPendingCropOverlay()
@@ -5397,7 +5962,11 @@ public partial class MainWindow : Window
         {
             var rpos = e.GetPosition(LivePreviewImage);
             if (TryPointToNorm(rpos, out double rnx, out double rny))
+            {
+                _cloneSourcePatchRect = null;
+                ClearCloneSourcePinGeometry();
                 SetCloneSource(new Point(rnx, rny));
+            }
             e.Handled = true;
             return;
         }
@@ -5486,6 +6055,8 @@ public partial class MainWindow : Window
                               || (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
             if (pickSource)
             {
+                _cloneSourcePatchRect = null;
+                ClearCloneSourcePinGeometry();
                 SetCloneSource(new Point(cnx, cny));
             }
             else
@@ -6059,17 +6630,17 @@ public partial class MainWindow : Window
             LivePreviewImage.Visibility = Visibility.Collapsed;
             _previewPixelWidth = 0;
             _previewPixelHeight = 0;
-            PreviewPlaceholderText.Visibility = Visibility.Visible;
-            PreviewPlaceholderText.Text = result.ErrorMessage is not null
-                ? "Önizleme oluşturulamadı"
-                : "Ürün görselini buraya sürükleyin\nveya sağ panelden klasör seçin";
             if (result.ErrorMessage is not null)
             {
+                PreviewPlaceholderText.Text = "Önizleme oluşturulamadı";
+                PreviewPlaceholderText.Visibility = Visibility.Visible;
                 PreviewErrorText.Text = result.ErrorMessage;
                 PreviewErrorText.Visibility = Visibility.Visible;
             }
             else
             {
+                PreviewPlaceholderText.Text = "";
+                PreviewPlaceholderText.Visibility = Visibility.Collapsed;
                 PreviewErrorText.Visibility = Visibility.Collapsed;
             }
         }

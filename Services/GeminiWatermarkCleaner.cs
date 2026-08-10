@@ -23,7 +23,7 @@ public static class GeminiWatermarkCleaner
     {
         if (op.IsBrush && op.BrushCenter is { } center)
         {
-            ApplyBrush(image, center, op.BrushRadiusNorm, op.BrushShape, op.Style, previewFast);
+            ApplyBrush(image, center, op.BrushRadiusNorm, op.BrushShape, op.Style, previewFast, op.RotationDegrees);
             return;
         }
 
@@ -39,7 +39,8 @@ public static class GeminiWatermarkCleaner
         double radiusNorm,
         TextureCloneBrushShape shape,
         WatermarkCleanStyle style,
-        bool previewFast = false)
+        bool previewFast = false,
+        double rotationDegrees = 0)
     {
         if (image.Width < 8 || image.Height < 8)
             return;
@@ -48,6 +49,9 @@ public static class GeminiWatermarkCleaner
         float radius = Math.Max(1.5f, (float)Math.Clamp(radiusNorm, 0.002, 0.35) * shortEdge);
         float cx = (float)(Math.Clamp(center.X, 0, 1) * (image.Width - 1));
         float cy = (float)(Math.Clamp(center.Y, 0, 1) * (image.Height - 1));
+        float rotRad = (float)(rotationDegrees * Math.PI / 180.0);
+        float cos = MathF.Cos(rotRad);
+        float sin = MathF.Sin(rotRad);
 
         // Şekli kapalı çokgen olarak örnekle (cleaner mevcut çokgen yolunu kullanır)
         int samples = shape is TextureCloneBrushShape.Square or TextureCloneBrushShape.Normal ? 4 : 32;
@@ -55,10 +59,16 @@ public static class GeminiWatermarkCleaner
         if (shape is TextureCloneBrushShape.Square or TextureCloneBrushShape.Normal)
         {
             float r = radius;
-            poly.Add(Norm(image, cx - r, cy - r));
-            poly.Add(Norm(image, cx + r, cy - r));
-            poly.Add(Norm(image, cx + r, cy + r));
-            poly.Add(Norm(image, cx - r, cy + r));
+            ReadOnlySpan<(float dx, float dy)> corners =
+            [
+                (-r, -r), (r, -r), (r, r), (-r, r)
+            ];
+            foreach (var (dx, dy) in corners)
+            {
+                float rx = dx * cos - dy * sin;
+                float ry = dx * sin + dy * cos;
+                poly.Add(Norm(image, cx + rx, cy + ry));
+            }
         }
         else
         {
@@ -73,7 +83,6 @@ public static class GeminiWatermarkCleaner
                 }
                 else if (shape == TextureCloneBrushShape.SoftSquare)
                 {
-                    // Superellipse n=4 örnekleme
                     float c = MathF.Cos(t);
                     float s = MathF.Sin(t);
                     float ax = MathF.Pow(MathF.Abs(c), 0.5f) * MathF.Sign(c);
@@ -87,7 +96,9 @@ public static class GeminiWatermarkCleaner
                     dy = MathF.Sin(t) * radius;
                 }
 
-                poly.Add(Norm(image, cx + dx, cy + dy));
+                float rx = dx * cos - dy * sin;
+                float ry = dx * sin + dy * cos;
+                poly.Add(Norm(image, cx + rx, cy + ry));
             }
         }
 
@@ -284,6 +295,9 @@ public static class GeminiWatermarkCleaner
             : Math.Clamp(side / tune.BlurExportDiv, tune.BlurExportMin, tune.BlurExportMax);
         BoxBlur(bufR, bufG, bufB, bufA, rw, rh, blurPasses);
 
+        // Blur seçim dışına taşmasın — aksi halde "içini kırp" çevreyi bozar
+        RestoreOutside(bufR, bufG, bufB, bufA, srcR, srcG, srcB, srcA, inside, n);
+
         if (tune.SoftFeatherPass)
         {
             for (int i = 0; i < n; i++)
@@ -297,6 +311,9 @@ public static class GeminiWatermarkCleaner
                 bufA[i] = bufA[i] * (1f - keep) + srcA[i] * keep;
             }
             BoxBlur(bufR, bufG, bufB, bufA, rw, rh, previewFast ? Math.Max(2, blurPasses / 2) : Math.Max(3, blurPasses / 3));
+            // İkinci blur sonrası da seçim dışı koru; yumuşak geçiş yalnızca iç + feather bandında kalsın
+            RestoreOutsideBeyondFeather(
+                bufR, bufG, bufB, bufA, srcR, srcG, srcB, srcA, inside, edgeDist, outerFeather, n);
         }
 
         image.ProcessPixelRows(accessor =>
@@ -307,6 +324,11 @@ public static class GeminiWatermarkCleaner
                 for (int x = 0; x < rw; x++)
                 {
                     int i = y * rw + x;
+
+                    // Net stillerde (TextureFill / SharpEdge / Block) seçim dışına hiç yazma
+                    if (!tune.SoftFeatherPass && !inside[i])
+                        continue;
+
                     float signed = inside[i] ? edgeDist[i] : -edgeDist[i];
                     float t = (signed + outerFeather) / (outerFeather + innerSoft);
                     float blend = SoftStep(Math.Clamp(t, 0f, 1f));
@@ -330,6 +352,38 @@ public static class GeminiWatermarkCleaner
                 }
             }
         });
+    }
+
+    private static void RestoreOutside(
+        float[] bufR, float[] bufG, float[] bufB, float[] bufA,
+        float[] srcR, float[] srcG, float[] srcB, float[] srcA,
+        bool[] inside, int n)
+    {
+        for (int i = 0; i < n; i++)
+        {
+            if (inside[i])
+                continue;
+            bufR[i] = srcR[i];
+            bufG[i] = srcG[i];
+            bufB[i] = srcB[i];
+            bufA[i] = srcA[i];
+        }
+    }
+
+    private static void RestoreOutsideBeyondFeather(
+        float[] bufR, float[] bufG, float[] bufB, float[] bufA,
+        float[] srcR, float[] srcG, float[] srcB, float[] srcA,
+        bool[] inside, float[] edgeDist, float outerFeather, int n)
+    {
+        for (int i = 0; i < n; i++)
+        {
+            if (inside[i] || edgeDist[i] <= outerFeather)
+                continue;
+            bufR[i] = srcR[i];
+            bufG[i] = srcG[i];
+            bufB[i] = srcB[i];
+            bufA[i] = srcA[i];
+        }
     }
 
     private readonly record struct StyleTune(

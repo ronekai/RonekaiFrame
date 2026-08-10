@@ -28,7 +28,8 @@ public sealed record WatermarkCleanOp(
     IReadOnlyList<NormalizedPoint> Polygon,
     NormalizedPoint? BrushCenter = null,
     double BrushRadiusNorm = 0,
-    TextureCloneBrushShape BrushShape = TextureCloneBrushShape.Circle)
+    TextureCloneBrushShape BrushShape = TextureCloneBrushShape.Circle,
+    double RotationDegrees = 0)
 {
     public bool IsBrush =>
         BrushCenter is not null && BrushRadiusNorm > 0.0005;
