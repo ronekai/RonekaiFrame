@@ -370,6 +370,7 @@
                             AllowDrop="True"
                             ToolTip="{x:Null}"
                             ToolTipService.IsEnabled="False"
+                            PreviewMouseWheel="LivePreviewDropZone_PreviewMouseWheel"
                             PreviewDragOver="LivePreviewDropZone_DragOver"
                             PreviewDrop="LivePreviewDropZone_Drop"
                             DragOver="LivePreviewDropZone_DragOver"

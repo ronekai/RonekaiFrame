@@ -3203,13 +3203,34 @@ public partial class MainWindow : Window
         if (_pendingCropRect is null)
             return;
 
+        // Şablon tuvalinde seçildiyse kaynak uzayına çevir (letterbox dışı atılır)
+        NormalizedCropRect pendingSource = _pendingCropRect;
+        if (ProductPlacementContext.HasPlacement
+            && !(ProductPlacementContext.DestX == 0
+                 && ProductPlacementContext.DestY == 0
+                 && ProductPlacementContext.DestWidth == ProductPlacementContext.CanvasWidth
+                 && ProductPlacementContext.DestHeight == ProductPlacementContext.CanvasHeight)
+            && TryCanvasRectToSourcePoly(_pendingCropRect, out var srcPoly)
+            && srcPoly.Length >= 4)
+        {
+            double minX = srcPoly.Min(p => p.X);
+            double minY = srcPoly.Min(p => p.Y);
+            double maxX = srcPoly.Max(p => p.X);
+            double maxY = srcPoly.Max(p => p.Y);
+            pendingSource = new NormalizedCropRect(
+                minX, minY,
+                Math.Max(0.002, maxX - minX),
+                Math.Max(0.002, maxY - minY));
+        }
+
+        // Kaynak normalize: ardışık kırpmalar orijinal görsele göre birikir
         NormalizedCropRect newActive = _activeCropRect is { } oldCrop
             ? new NormalizedCropRect(
-                oldCrop.Left + _pendingCropRect.Left * oldCrop.Width,
-                oldCrop.Top + _pendingCropRect.Top * oldCrop.Height,
-                _pendingCropRect.Width * oldCrop.Width,
-                _pendingCropRect.Height * oldCrop.Height)
-            : _pendingCropRect;
+                oldCrop.Left + pendingSource.Left * oldCrop.Width,
+                oldCrop.Top + pendingSource.Top * oldCrop.Height,
+                pendingSource.Width * oldCrop.Width,
+                pendingSource.Height * oldCrop.Height)
+            : pendingSource;
 
         _cropUndoStack.Push(_activeCropRect);
         _activeCropRect = newActive;
@@ -5086,8 +5107,23 @@ public partial class MainWindow : Window
 
     private void PreviewScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        // Yapıştırma aktifken tekerlek = döndür (Ctrl ile zoom)
-        if (_floatingPasteActive && Keyboard.Modifiers != ModifierKeys.Control)
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+
+        // Ctrl + tekerlek: sahneyi yakınlaştır / uzaklaştır (her modda)
+        if (ctrl)
+        {
+            e.Handled = true;
+            if (PreviewScrollViewer is null)
+                return;
+
+            var pos = e.GetPosition(PreviewScrollViewer);
+            double factor = e.Delta > 0 ? PreviewZoomStep : 1.0 / PreviewZoomStep;
+            ApplyPreviewZoom(_previewZoom * factor, pos);
+            return;
+        }
+
+        // Yapıştırma aktifken tekerlek = döndür
+        if (_floatingPasteActive)
         {
             e.Handled = true;
             double step = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ? 15 : 5;
@@ -5095,28 +5131,23 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Seçim / pin / klon / filigram şekli: tekerlek = açı (Ctrl = zoom)
-        if (Keyboard.Modifiers != ModifierKeys.Control
-            && (HasRotatableSelection() || IsCloneStampMode || IsFiligramBrushMode || IsPinSelectMode))
+        // Seçim / pin / klon / filigram: tekerlek = açı
+        if (HasRotatableSelection() || IsCloneStampMode || IsFiligramBrushMode || IsPinSelectMode)
         {
             e.Handled = true;
             double step = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
                 ? 15
                 : (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt ? 1 : 5;
             NudgeSelectionRotation(e.Delta > 0 ? -step : step);
-            return;
         }
+    }
 
-        if (Keyboard.Modifiers != ModifierKeys.Control)
+    private void LivePreviewDropZone_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        // Border üzerinde de Ctrl+zoom (ScrollViewer dışı boşluklar dahil)
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
             return;
-
-        e.Handled = true;
-        if (PreviewScrollViewer is null)
-            return;
-
-        var pos = e.GetPosition(PreviewScrollViewer);
-        double factor = e.Delta > 0 ? PreviewZoomStep : 1.0 / PreviewZoomStep;
-        ApplyPreviewZoom(_previewZoom * factor, pos);
+        PreviewScrollViewer_PreviewMouseWheel(sender, e);
     }
 
     private void PreviewScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)

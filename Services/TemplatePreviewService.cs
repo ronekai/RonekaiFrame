@@ -82,10 +82,14 @@ public static class TemplatePreviewService
                 if (pasteOps.Count > 0)
                     SelectionPasteService.ApplyAll(preparedSource, pasteOps);
 
+                // Dışını kırp → kaynakta, şablondan önce (şablon kırpılan alanı geri getirmesin)
+                if (cropRect is not null)
+                    ImageCropper.ApplyNormalizedCrop(preparedSource, cropRect);
+
                 bool skipFrame = job.ResizeOnly || template.IsPassthrough;
                 bool stretchToExport = template.StretchToExport && !job.ResizeOnly;
                 bool extendEdges = job.ExtendTemplateEdges && !skipFrame;
-                bool deferBrand = cropRect is not null || extendEdges;
+                bool deferBrand = extendEdges;
                 using var ____ = BrandOverlayDeferContext.Use(deferBrand);
 
                 ImgSize templateSize = skipFrame
@@ -120,7 +124,6 @@ public static class TemplatePreviewService
                 if (cloneOps.Count > 0)
                     TextureCloneService.ApplyAll(frame, cloneOps);
 
-                // SourceNative pad'i pin/klon koordinatlarını bozmasın — hedef = frame
                 int scaleSrcW = frame.Width;
                 int scaleSrcH = frame.Height;
 
@@ -130,63 +133,25 @@ public static class TemplatePreviewService
                     int exportW;
                     int exportH;
 
-                    if (!deferBrand)
-                    {
-                        using var withLogo = ApplyLogoIfNeeded(frame, logoSettings);
-                        using var withText = job.TextOverlay.HasText
-                            ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
-                            : withLogo.CloneAs<Rgba32>();
-                        output = OutputScaler.Apply(
-                            withText,
-                            exportProfile,
-                            scaleSrcW,
-                            scaleSrcH,
-                            templateSize,
-                            stretchToExport);
-                        exportW = output.Width;
-                        exportH = output.Height;
-                    }
-                    else if (cropRect is null)
+                    if (deferBrand)
                     {
                         LogoPlacementContext.Reset();
                         ImageBrandOverlay.ApplyToCanvas(frame);
-                        using var withLogo = ApplyLogoIfNeeded(frame, logoSettings);
-                        using var withText = job.TextOverlay.HasText
-                            ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
-                            : withLogo.CloneAs<Rgba32>();
-                        output = OutputScaler.Apply(
-                            withText,
-                            exportProfile,
-                            scaleSrcW,
-                            scaleSrcH,
-                            templateSize,
-                            stretchToExport);
-                        exportW = output.Width;
-                        exportH = output.Height;
                     }
-                    else
-                    {
-                        using var scaled = OutputScaler.Apply(
-                            frame,
-                            exportProfile,
-                            scaleSrcW,
-                            scaleSrcH,
-                            templateSize,
-                            stretchToExport);
 
-                        ImageCropper.ApplyNormalizedCrop(scaled, cropRect);
-
-                        exportW = scaled.Width;
-                        exportH = scaled.Height;
-
-                        LogoPlacementContext.Reset();
-                        ImageBrandOverlay.ApplyToCanvas(scaled);
-
-                        using var withLogo = ApplyLogoIfNeeded(scaled, logoSettings);
-                        output = job.TextOverlay.HasText
-                            ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
-                            : withLogo.CloneAs<Rgba32>();
-                    }
+                    using var withLogo = ApplyLogoIfNeeded(frame, logoSettings);
+                    using var withText = job.TextOverlay.HasText
+                        ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
+                        : withLogo.CloneAs<Rgba32>();
+                    output = OutputScaler.Apply(
+                        withText,
+                        exportProfile,
+                        scaleSrcW,
+                        scaleSrcH,
+                        templateSize,
+                        stretchToExport);
+                    exportW = output.Width;
+                    exportH = output.Height;
 
                     using (output)
                     {

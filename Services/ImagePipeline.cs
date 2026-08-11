@@ -36,13 +36,18 @@ public static class ImagePipeline
         using var input = SourceImageLoader.Load(sourceFile);
         using var prepared = PrepareSourceWithPhotoEdits(input, cleanOps, pasteOps);
 
+        // Dışını kırp: kaynağa şablondan ÖNCE uygulanır — aksi halde şablon
+        // kırpılan alanı tekrar içine alıp görseli "tamamlar".
+        if (crop is not null)
+            ImageCropper.ApplyNormalizedCrop(prepared, crop);
+
         ImgSize templateSize = template?.ResolveOutputSize(prepared.Width, prepared.Height)
                                ?? new ImgSize(prepared.Width, prepared.Height);
         bool skipFrame = job.ResizeOnly || template is null || template.IsPassthrough;
         bool stretchToExport = template?.StretchToExport == true && !job.ResizeOnly;
         bool extendEdges = job.ExtendTemplateEdges && !skipFrame;
-        // Marka/logo: kenar uzatma + klon sonrası çizilsin (uzatılan zeminin üstüne otursun)
-        bool deferBrand = crop is not null || extendEdges;
+        // Marka/logo: kenar uzatma sonrası çizilsin (uzatılan zeminin üstüne otursun)
+        bool deferBrand = extendEdges;
         using var ____ = BrandOverlayDeferContext.Use(deferBrand);
 
         Image<Rgba32> frame;
@@ -70,53 +75,27 @@ public static class ImagePipeline
         if (cloneOps.Count > 0)
             TextureCloneService.ApplyAll(frame, cloneOps);
 
+        // SourceNative vb. için kırpılmış kaynak boyutunu kullan
+        int exportSrcW = prepared.Width;
+        int exportSrcH = prepared.Height;
+
         try
         {
-            if (!deferBrand)
-            {
-                using var withOverlays = ApplyLogoAndText(frame, logoSettings, job, colorTheme);
-                using var scaled = OutputScaler.Apply(
-                    withOverlays,
-                    exportProfile,
-                    input.Width,
-                    input.Height,
-                    templateSize,
-                    stretchToExport);
-                SaveToPath(scaled, outputPath, job, themeColors);
-                return;
-            }
-
-            if (crop is null)
+            if (deferBrand)
             {
                 LogoPlacementContext.Reset();
                 ImageBrandOverlay.ApplyToCanvas(frame);
-                using var withOverlays = ApplyLogoAndText(frame, logoSettings, job, colorTheme);
-                using var scaled = OutputScaler.Apply(
-                    withOverlays,
-                    exportProfile,
-                    input.Width,
-                    input.Height,
-                    templateSize,
-                    stretchToExport);
-                SaveToPath(scaled, outputPath, job, themeColors);
-                return;
             }
 
-            using var scaledForCrop = OutputScaler.Apply(
-                frame,
+            using var withOverlays = ApplyLogoAndText(frame, logoSettings, job, colorTheme);
+            using var scaled = OutputScaler.Apply(
+                withOverlays,
                 exportProfile,
-                input.Width,
-                input.Height,
+                exportSrcW,
+                exportSrcH,
                 templateSize,
                 stretchToExport);
-
-            ImageCropper.ApplyNormalizedCrop(scaledForCrop, crop);
-
-            LogoPlacementContext.Reset();
-            ImageBrandOverlay.ApplyToCanvas(scaledForCrop);
-
-            using var composed = ApplyLogoAndText(scaledForCrop, logoSettings, job, colorTheme);
-            SaveToPath(composed, outputPath, job, themeColors);
+            SaveToPath(scaled, outputPath, job, themeColors);
         }
         finally
         {
