@@ -3107,7 +3107,8 @@ public partial class MainWindow : Window
         || _selectionPins.Count >= 1
         || IsCloneStampMode
         || IsFiligramBrushMode
-        || IsPinShapedSelectionMode;
+        || IsPinShapedSelectionMode
+        || (_cloneSourceNorm is not null && _cloneSourcePatchRect is not null);
 
     private bool TryCaptureSelectionSnapshot(out SelectionSnapshot snapshot)
     {
@@ -3531,6 +3532,16 @@ public partial class MainWindow : Window
 
     private void NudgeSelectionRotation(double deltaDeg)
     {
+        // Kilitli klon kaynağı: damgayı döndür (kaynak kesiti sabit kalır)
+        if (IsCloneStampMode
+            && _cloneSourceNorm is not null
+            && _cloneSourcePatchRect is not null
+            && !_clonePickSourceNext)
+        {
+            NudgeCloneSourceRotation(deltaDeg);
+            return;
+        }
+
         if (!HasRotatableSelection() && !IsCloneStampMode && !IsFiligramBrushMode)
             return;
 
@@ -3566,6 +3577,17 @@ public partial class MainWindow : Window
         {
             CloneStatusHint.Text = $"∠ {_selectionRotationDeg:0}° · tekerlek = döndür (Shift: 15°)";
         }
+    }
+
+    /// <summary>Klon damgasının yapıştırma açısını değiştirir (kaynak pinleri sabit).</summary>
+    private void NudgeCloneSourceRotation(double deltaDeg)
+    {
+        _cloneSourcePatchRotation = NormalizeAngleDeg(_cloneSourcePatchRotation + deltaDeg);
+        _selectionRotationDeg = _cloneSourcePatchRotation;
+        RefreshCloneOverlay();
+        UpdateCropUi();
+        if (CloneStatusHint is not null)
+            CloneStatusHint.Text = $"∠ {_cloneSourcePatchRotation:0}° · tekerlek = damgayı döndür (Shift: 15°)";
     }
 
     private void CopyCurrentSelectionToClipboard()
@@ -4054,6 +4076,13 @@ public partial class MainWindow : Window
 
     private void ClonePickSourceButton_Click(object sender, RoutedEventArgs e)
     {
+        // Yeniden kaynak: kilitli kaynağı bırak, pin seçime dön (eski pinlerle otomatik yeniden kilitleme)
+        if (_cloneSourceNorm is not null && !_clonePickSourceNext)
+        {
+            BeginFreshCloneSourcePick();
+            return;
+        }
+
         // Pin / şekil / dikdörtgen seçimi varsa doğrudan kaynak yama yap
         if (TryApplyCloneSourceFromCurrentSelection())
             return;
@@ -4073,16 +4102,49 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Nokta kaynağı: klon modunda sonraki tık
         _cloneSourcePatchRect = null;
+        ClearCloneSourcePinGeometry();
         if (!IsCloneStampMode)
             CloneStampModeToggle.IsChecked = true;
 
         _clonePickSourceNext = true;
-        ClearCloneSourcePinGeometry();
         RefreshCloneButtonsUi();
         RefreshSelectionOverlaysAfterModeChange();
         if (CloneStatusHint is not null)
             CloneStatusHint.Text = "→ Yeni kaynak noktasına tıkla (sağ tık da olur)";
+    }
+
+    /// <summary>
+    /// Kilitli klon kaynağını temizler; pin seçim moduna geçerek yeni kaynak alınmasını sağlar.
+    /// </summary>
+    private void BeginFreshCloneSourcePick()
+    {
+        _cloneSourceNorm = null;
+        _cloneSourcePatchRect = null;
+        ClearCloneSourcePinGeometry();
+        _clonePickSourceNext = false;
+        _cloneLastStampNorm = null;
+        _cloneHoverNorm = null;
+        _clonePainting = false;
+
+        ClearSelectionPins();
+        _filigramBrushCenterCanvas = null;
+        _pendingCropRect = null;
+        ResetSelectionRotation();
+        SetCropOverlay(null);
+
+        if (CloneStampModeToggle?.IsChecked == true)
+            CloneStampModeToggle.IsChecked = false;
+
+        if (PinSelectModeToggle is not null)
+            PinSelectModeToggle.IsChecked = true;
+
+        RefreshCloneButtonsUi();
+        RefreshSelectionOverlaysAfterModeChange();
+        UpdateCropUi();
+        if (CloneStatusHint is not null)
+            CloneStatusHint.Text = "→ Yeni pin/şekil seç, sonra «Kaynak al»";
     }
 
     private void ClearCloneSourcePinGeometry()
@@ -4230,11 +4292,14 @@ public partial class MainWindow : Window
         }
 
         _cloneSourcePatchRect = rect;
-        _cloneSourcePatchRotation = _selectionRotationDeg;
         _cloneSourcePatchShape = GetSelectedCloneBrushShape() == TextureCloneBrushShape.Normal
             ? TextureCloneBrushShape.Square
             : GetEffectiveCloneStampShape();
         CaptureCloneSourcePinGeometry();
+        // Pin / döndürülmüş köşeler geometride — açı tekrar uygulanmasın (çift döndürme = bozuk damga)
+        _cloneSourcePatchRotation = _cloneSourcePins is { Count: >= 2 }
+            ? 0
+            : _selectionRotationDeg;
         // Pin / döndürülmüş seçim: merkez = centroid (AABB değil — overlay ile aynı)
         if (_cloneSourcePins is { Count: >= 2 })
         {
@@ -4256,10 +4321,17 @@ public partial class MainWindow : Window
         if (!IsCloneStampMode)
             CloneStampModeToggle.IsChecked = true;
 
+        // Düzenlenebilir pinler kaynağa kilitlendi — temizle ki yeniden pin seçilebilsin
+        ClearSelectionPins();
+        _pendingCropRect = null;
+        _filigramBrushCenterCanvas = null;
+        SetCropOverlay(null);
+
         _clonePickSourceNext = false;
         RefreshCloneButtonsUi();
         RefreshPinOverlay();
         RefreshCloneOverlay();
+        UpdateCropUi();
 
         if (CloneStatusHint is not null)
         {
@@ -4427,7 +4499,7 @@ public partial class MainWindow : Window
                 radius,
                 shape,
                 FillRect: null,
-                RotationDegrees: poly is { Count: >= 3 } ? 0 : _cloneSourcePatchRotation,
+                RotationDegrees: _cloneSourcePatchRotation,
                 ExactCopy: true,
                 SourceRect: patch,
                 SourcePolygon: poly));
@@ -4658,10 +4730,18 @@ public partial class MainWindow : Window
         {
             if (_cloneSourcePinOffsets is null || _cloneSourcePinOffsets.Count == 0)
                 return [];
+            double rad = _cloneSourcePatchRotation * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
             return _cloneSourcePinOffsets
-                .Select(o => new Point(
-                    Math.Clamp(center.X + o.X, 0, 1),
-                    Math.Clamp(center.Y + o.Y, 0, 1)))
+                .Select(o =>
+                {
+                    double rx = o.X * cos - o.Y * sin;
+                    double ry = o.X * sin + o.Y * cos;
+                    return new Point(
+                        Math.Clamp(center.X + rx, 0, 1),
+                        Math.Clamp(center.Y + ry, 0, 1));
+                })
                 .ToList();
         }
 
@@ -4748,6 +4828,8 @@ public partial class MainWindow : Window
             // Beyaz seçim varsa koru (gizli kalır); pin eklenince üzerine yazılır
             if (LivePreviewImage.Visibility == Visibility.Visible)
                 LivePreviewImage.Cursor = Cursors.Pen;
+            if (CloneStatusHint is not null && _cloneSourceNorm is not null)
+                CloneStatusHint.Text = "→ Pin ile yeni seçim · «Kaynak al» / «Yeniden kaynak»";
         }
         else if (_eyedropperColorField is null)
         {
@@ -4778,6 +4860,9 @@ public partial class MainWindow : Window
         _pendingCropRect = null;
         ResetSelectionRotation();
         SetCropOverlay(null);
+        // Pin seçim modunda değilse aç — kullanıcı yeni pin koyabilsin
+        if (PinSelectModeToggle is not null && PinSelectModeToggle.IsChecked != true)
+            PinSelectModeToggle.IsChecked = true;
         RefreshCloneOverlay();
         UpdateCropUi();
     }

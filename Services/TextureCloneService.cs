@@ -1,6 +1,7 @@
 using RonekaiImageFramer.Models;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace RonekaiImageFramer.Services;
 
@@ -42,6 +43,7 @@ public static class TextureCloneService
     /// <summary>
     /// Seçim alanını bire bir kopyalar. SourcePolygon varsa yalnızca çokgen içi
     /// (paralelkenar / dışbükey zarf) kopyalanır — AABB veya bowtie değil.
+    /// RotationDegrees: kaynak kesiti çıkarıldıktan sonra damgayı döndürür.
     /// </summary>
     private static void ApplyExactCopy(Image<Rgba32> image, TextureCloneOp op, NormalizedCropRect sourceRect)
     {
@@ -50,14 +52,12 @@ public static class TextureCloneService
         if (w < 2 || h < 2)
             return;
 
-        // Watermark cleaner ile aynı eşleme: norm * (size-1)
         float NormX(double n) => (float)(Math.Clamp(n, 0, 1) * (w - 1));
         float NormY(double n) => (float)(Math.Clamp(n, 0, 1) * (h - 1));
 
         Vec2[]? polyPx = null;
         if (op.SourcePolygon is { Count: >= 3 } srcPoly)
         {
-            // Dışbükey zarf — pin sırası bowtie olsa bile seçim alanını korur
             var raw = srcPoly.Select(p => new Vec2(NormX(p.X), NormY(p.Y))).ToArray();
             polyPx = ConvexHull(raw);
             if (polyPx.Length < 3)
@@ -73,17 +73,6 @@ public static class TextureCloneService
             bottom = polyPx.Max(p => p.Y);
             srcCxPx = polyPx.Average(p => p.X);
             srcCyPx = polyPx.Average(p => p.Y);
-        }
-        else if (Math.Abs(op.RotationDegrees) > 0.01)
-        {
-            var corners = RotatedRectCorners(sourceRect, (float)op.RotationDegrees);
-            polyPx = corners.Select(p => new Vec2(NormX(p.X), NormY(p.Y))).ToArray();
-            left = polyPx.Min(p => p.X);
-            top = polyPx.Min(p => p.Y);
-            right = polyPx.Max(p => p.X);
-            bottom = polyPx.Max(p => p.Y);
-            srcCxPx = NormX(sourceRect.Left + sourceRect.Width * 0.5);
-            srcCyPx = NormY(sourceRect.Top + sourceRect.Height * 0.5);
         }
         else
         {
@@ -107,25 +96,17 @@ public static class TextureCloneService
 
         float destCx = NormX(op.DestCenter.X);
         float destCy = NormY(op.DestCenter.Y);
-        int dx0 = (int)Math.Round(destCx - (srcCxPx - sx0));
-        int dy0 = (int)Math.Round(destCy - (srcCyPx - sy0));
+        float stampRot = (float)op.RotationDegrees;
 
-        float rot = (float)op.RotationDegrees;
-        bool useShapeMask = polyPx is null && (
-            Math.Abs(rot) > 0.01f
-            || op.Shape is TextureCloneBrushShape.Circle
-                or TextureCloneBrushShape.Ellipse
-                or TextureCloneBrushShape.SoftSquare);
+        // Kaynak maskesi döndürülmez — damga yapıştırırken döner
+        bool useShapeMask = polyPx is null
+                            && op.Shape is TextureCloneBrushShape.Circle
+                                or TextureCloneBrushShape.Ellipse
+                                or TextureCloneBrushShape.SoftSquare;
         float cx = srcCxPx - sx0;
         float cy = srcCyPx - sy0;
-        float rx = Math.Max(1f, (right - left) * 0.5f);
-        float ry = Math.Max(1f, (bottom - top) * 0.5f);
-        if (!useShapeMask && polyPx is null)
-        {
-            // Düz dikdörtgen: sourceRect yarıçapları
-            rx = Math.Max(1f, (float)(sourceRect.Width * (w - 1) * 0.5));
-            ry = Math.Max(1f, (float)(sourceRect.Height * (h - 1) * 0.5));
-        }
+        float rx = Math.Max(1f, (float)(sourceRect.Width * (w - 1) * 0.5));
+        float ry = Math.Max(1f, (float)(sourceRect.Height * (h - 1) * 0.5));
 
         Vec2[]? polyLocal = null;
         if (polyPx is { Length: >= 3 })
@@ -135,8 +116,7 @@ public static class TextureCloneService
                 polyLocal[i] = new Vec2(polyPx[i].X - sx0, polyPx[i].Y - sy0);
         }
 
-        var patch = new Rgba32[rw * rh];
-        var insideMask = new bool[rw * rh];
+        using var patchImg = new Image<Rgba32>(rw, rh);
         image.ProcessPixelRows(accessor =>
         {
             for (int y = 0; y < rh; y++)
@@ -146,41 +126,114 @@ public static class TextureCloneService
                 {
                     bool inside;
                     if (polyLocal is not null)
-                        inside = PointInConvexPolygon(x + 0.5f, y + 0.5f, polyLocal);
+                        inside = PointInPolygon(x + 0.5f, y + 0.5f, polyLocal);
                     else if (useShapeMask)
                         inside = ShapeDistanceRect(
-                            x + 0.5f, y + 0.5f, cx, cy, rx, ry, op.Shape, rot) <= 1f;
+                            x + 0.5f, y + 0.5f, cx, cy, rx, ry, op.Shape, 0) <= 1f;
                     else
                         inside = true;
 
-                    int i = y * rw + x;
-                    insideMask[i] = inside;
                     if (!inside)
+                    {
+                        patchImg[x, y] = new Rgba32(0, 0, 0, 0);
                         continue;
+                    }
 
                     var p = srcRow[sx0 + x];
-                    patch[i] = new Rgba32(p.R, p.G, p.B, p.A == 0 ? (byte)255 : p.A);
+                    patchImg[x, y] = new Rgba32(p.R, p.G, p.B, p.A == 0 ? (byte)255 : p.A);
                 }
             }
         });
 
-        image.ProcessPixelRows(accessor =>
+        // Damga açısı: en yakın komşu döndürme + sert yaz (DrawImage/Rotate yumuşatmasın)
+        HardBlitRotated(image, patchImg, destCx, destCy, stampRot);
+    }
+
+    /// <summary>
+    /// Yalnızca alfa&gt;0 pikselleri yazar. degrees≠0 ise ters dönüşümle örnekler.
+    /// </summary>
+    private static void HardBlitRotated(
+        Image<Rgba32> dest, Image<Rgba32> patch, float destCx, float destCy, float degrees)
+    {
+        int w = dest.Width;
+        int h = dest.Height;
+        int pw = patch.Width;
+        int ph = patch.Height;
+        float pcx = (pw - 1) / 2f;
+        float pcy = (ph - 1) / 2f;
+
+        if (Math.Abs(degrees) <= 0.05f)
         {
-            for (int y = 0; y < rh; y++)
+            int dx0 = (int)Math.Round(destCx - pw / 2.0);
+            int dy0 = (int)Math.Round(destCy - ph / 2.0);
+            var buf = new Rgba32[pw * ph];
+            patch.CopyPixelDataTo(buf);
+            dest.ProcessPixelRows(accessor =>
             {
-                int dy = dy0 + y;
+                for (int y = 0; y < ph; y++)
+                {
+                    int dy = dy0 + y;
+                    if ((uint)dy >= (uint)h)
+                        continue;
+                    var row = accessor.GetRowSpan(dy);
+                    int rowOff = y * pw;
+                    for (int x = 0; x < pw; x++)
+                    {
+                        int dx = dx0 + x;
+                        if ((uint)dx >= (uint)w)
+                            continue;
+                        var p = buf[rowOff + x];
+                        if (p.A == 0)
+                            continue;
+                        row[dx] = p;
+                    }
+                }
+            });
+            return;
+        }
+
+        float rad = degrees * MathF.PI / 180f;
+        float cos = MathF.Cos(rad);
+        float sin = MathF.Sin(rad);
+        // Ters dönüşüm için
+        float invCos = cos;
+        float invSin = -sin;
+
+        float diag = MathF.Sqrt(pw * pw + ph * ph);
+        int half = (int)Math.Ceiling(diag / 2f) + 1;
+        int x0 = (int)Math.Floor(destCx - half);
+        int y0 = (int)Math.Floor(destCy - half);
+        int x1 = (int)Math.Ceiling(destCx + half);
+        int y1 = (int)Math.Ceiling(destCy + half);
+
+        var patchBuf = new Rgba32[pw * ph];
+        patch.CopyPixelDataTo(patchBuf);
+
+        dest.ProcessPixelRows(accessor =>
+        {
+            for (int dy = y0; dy <= y1; dy++)
+            {
                 if ((uint)dy >= (uint)h)
                     continue;
-                var destRow = accessor.GetRowSpan(dy);
-                for (int x = 0; x < rw; x++)
+                var row = accessor.GetRowSpan(dy);
+                for (int dx = x0; dx <= x1; dx++)
                 {
-                    int dx = dx0 + x;
                     if ((uint)dx >= (uint)w)
                         continue;
-                    int i = y * rw + x;
-                    if (!insideMask[i])
+
+                    float ox = dx + 0.5f - destCx;
+                    float oy = dy + 0.5f - destCy;
+                    float lx = ox * invCos - oy * invSin + pcx;
+                    float ly = ox * invSin + oy * invCos + pcy;
+                    int sx = (int)MathF.Round(lx);
+                    int sy = (int)MathF.Round(ly);
+                    if ((uint)sx >= (uint)pw || (uint)sy >= (uint)ph)
                         continue;
-                    destRow[dx] = patch[i];
+
+                    var p = patchBuf[sy * pw + sx];
+                    if (p.A == 0)
+                        continue;
+                    row[dx] = p;
                 }
             }
         });
