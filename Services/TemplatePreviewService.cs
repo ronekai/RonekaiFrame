@@ -117,22 +117,33 @@ public static class TemplatePreviewService
                 if (extendEdges)
                     EdgePadFillService.Apply(frame, job.EdgePadSampleRect);
 
-                // Önizleme 0..1 her zaman frame uzayı olsun (klon öncesi/sonrası kayma olmasın)
+                // Önizleme 0..1 = frame; CapLongEdge sonrası placement'ı da ölçekle
+                int preCapW = frame.Width;
+                int preCapH = frame.Height;
                 CapLongEdgeInPlace(frame, MaxPreviewWorkLongEdge);
                 templateSize = new ImgSize(frame.Width, frame.Height);
+                if ((frame.Width != preCapW || frame.Height != preCapH)
+                    && ProductPlacementContext.HasPlacement
+                    && preCapW > 0 && preCapH > 0)
+                {
+                    double sx = frame.Width / (double)preCapW;
+                    double sy = frame.Height / (double)preCapH;
+                    ProductPlacementContext.Set(
+                        ProductPlacementContext.SourceWidth,
+                        ProductPlacementContext.SourceHeight,
+                        frame.Width,
+                        frame.Height,
+                        (int)Math.Round(ProductPlacementContext.DestX * sx),
+                        (int)Math.Round(ProductPlacementContext.DestY * sy),
+                        Math.Max(1, (int)Math.Round(ProductPlacementContext.DestWidth * sx)),
+                        Math.Max(1, (int)Math.Round(ProductPlacementContext.DestHeight * sy)));
+                }
 
                 if (cloneOps.Count > 0)
                     TextureCloneService.ApplyAll(frame, cloneOps);
 
-                int scaleSrcW = frame.Width;
-                int scaleSrcH = frame.Height;
-
                 using (frame)
                 {
-                    Image<Rgba32> output;
-                    int exportW;
-                    int exportH;
-
                     if (deferBrand)
                     {
                         LogoPlacementContext.Reset();
@@ -143,55 +154,48 @@ public static class TemplatePreviewService
                     using var withText = job.TextOverlay.HasText
                         ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
                         : withLogo.CloneAs<Rgba32>();
-                    output = OutputScaler.Apply(
-                        withText,
-                        exportProfile,
-                        scaleSrcW,
-                        scaleSrcH,
-                        templateSize,
-                        stretchToExport);
-                    exportW = output.Width;
-                    exportH = output.Height;
 
-                    using (output)
-                    {
-                        // Görüntüleme için küçült — logo zaten tam çıktı boyutunda yerleşti
-                        var png = WpfImageHelper.EncodePng(output, MaxPreviewWorkLongEdge);
+                    // Canlı önizleme: OutputScaler pad/letterbox YAPMA —
+                    // Fixed/Instagram vb. tuval geometrisini bozup pin/klon seçimini kaydırır.
+                    // Kullanıcı ne görüyorsa klon o uzayda uygulanır; dışa aktarımda scaler ayrı çalışır.
+                    using var output = withText.CloneAs<Rgba32>();
+                    int exportW = output.Width;
+                    int exportH = output.Height;
+                    var png = WpfImageHelper.EncodePng(output, MaxPreviewWorkLongEdge);
 
-                        string sizeLabel = cropRect is not null
-                            ? $"Çıktı: {exportW} × {exportH} px (kırp)"
-                            : OutputScaler.FormatTargetLabel(exportProfile, templateSize, srcW, srcH, stretchToExport);
+                    string sizeLabel = cropRect is not null
+                        ? $"Çıktı: {exportW} × {exportH} px (kırp)"
+                        : OutputScaler.FormatTargetLabel(exportProfile, templateSize, srcW, srcH, stretchToExport);
 
-                        string logoNote = logoSettings.UsesLogo ? " · logo" : "";
-                        string textNote = job.TextOverlay.HasText ? " · metin" : "";
-                        string sourceNote = usedRealPhoto
-                            ? $"Gerçek fotoğraf: {Path.GetFileName(sampleSourceFile)}"
-                            : "Demo ürün görseli";
-                        string brandNote = ImageBrandOverlay.ShouldApply ? " · marka" : "";
-                        string modNote = job.ResizeOnly ? " · sadece boyutlandır"
-                            : template.IsPassthrough && !template.StretchToExport ? " · şablon yok"
-                            : template.StretchToExport ? " · yay"
-                            : job.ResponsiveProductFit ? " · responsif"
-                            : "";
-                        modNote += brandNote;
-                        if (cropRect is not null)
-                            modNote += " · kırp";
-                        if (cleanOps.Count > 0)
-                            modNote += $" · filigram×{cleanOps.Count}";
-                        if (cloneOps.Count > 0)
-                            modNote += $" · klon×{cloneOps.Count}";
-                        if (job.ExtendTemplateEdges && !skipFrame)
-                            modNote += " · kenar uzat";
+                    string logoNote = logoSettings.UsesLogo ? " · logo" : "";
+                    string textNote = job.TextOverlay.HasText ? " · metin" : "";
+                    string sourceNote = usedRealPhoto
+                        ? $"Gerçek fotoğraf: {Path.GetFileName(sampleSourceFile)}"
+                        : "Demo ürün görseli";
+                    string brandNote = ImageBrandOverlay.ShouldApply ? " · marka" : "";
+                    string modNote = job.ResizeOnly ? " · sadece boyutlandır"
+                        : template.IsPassthrough && !template.StretchToExport ? " · şablon yok"
+                        : template.StretchToExport ? " · yay"
+                        : job.ResponsiveProductFit ? " · responsif"
+                        : "";
+                    modNote += brandNote;
+                    if (cropRect is not null)
+                        modNote += " · kırp";
+                    if (cleanOps.Count > 0)
+                        modNote += $" · filigram×{cleanOps.Count}";
+                    if (cloneOps.Count > 0)
+                        modNote += $" · klon×{cloneOps.Count}";
+                    if (job.ExtendTemplateEdges && !skipFrame)
+                        modNote += " · kenar uzat";
 
-                        return new LivePreviewResult(
-                            png,
-                            sizeLabel,
-                            $"{sourceNote} · {imageBrand.MainText}{imageBrand.SuffixText}{logoNote}{textNote}{modNote}",
-                            true,
-                            null,
-                            exportW,
-                            exportH);
-                    }
+                    return new LivePreviewResult(
+                        png,
+                        sizeLabel,
+                        $"{sourceNote} · {imageBrand.MainText}{imageBrand.SuffixText}{logoNote}{textNote}{modNote}",
+                        true,
+                        null,
+                        exportW,
+                        exportH);
                 }
             }
             finally

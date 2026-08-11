@@ -14,7 +14,7 @@ public enum TextureCloneBrushShape
 /// Klon damga: kaynak merkezden hedef merkeze yumuşak yama.
 /// Koordinatlar önizleme / şablon tuvali normalize (0..1).
 /// ExactCopy + SourceRect: seçim alanını bire bir (sert kenar) hedefe kopyalar.
-/// FillRect (ExactCopy yok): yumuşak doku nakli.
+/// PatchPng: Kaynak al anında kilitlenen kesit (görünen önizleme pikselleri).
 /// </summary>
 public sealed record TextureCloneOp(
     NormalizedPoint SourceCenter,
@@ -25,4 +25,5 @@ public sealed record TextureCloneOp(
     double RotationDegrees = 0,
     bool ExactCopy = false,
     NormalizedCropRect? SourceRect = null,
-    IReadOnlyList<NormalizedPoint>? SourcePolygon = null);
+    IReadOnlyList<NormalizedPoint>? SourcePolygon = null,
+    byte[]? PatchPng = null);
