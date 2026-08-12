@@ -72,9 +72,6 @@ public static class ImagePipeline
         if (extendEdges)
             EdgePadFillService.Apply(frame, job.EdgePadSampleRect);
 
-        if (cloneOps.Count > 0)
-            TextureCloneService.ApplyAll(frame, cloneOps);
-
         // SourceNative vb. için kırpılmış kaynak boyutunu kullan
         int exportSrcW = prepared.Width;
         int exportSrcH = prepared.Height;
@@ -88,6 +85,9 @@ public static class ImagePipeline
             }
 
             using var withOverlays = ApplyLogoAndText(frame, logoSettings, job, colorTheme);
+            // Önizleme ile aynı sıra: logo/metin sonrası klon
+            if (cloneOps.Count > 0)
+                TextureCloneService.ApplyAll(withOverlays, cloneOps);
             using var scaled = OutputScaler.Apply(
                 withOverlays,
                 exportProfile,

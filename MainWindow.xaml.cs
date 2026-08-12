@@ -86,6 +86,10 @@ public partial class MainWindow : Window
     private List<Point>? _cloneSourcePinOffsets;
     /// <summary>Kaynak al anında önizlemeden kilitlenen kesit PNG (bire bir damga).</summary>
     private byte[]? _cloneSourcePatchPng;
+    private int _cloneSourcePatchBakeWidth;
+    private int _cloneSourcePatchBakeHeight;
+    /// <summary>Son canlı önizleme PNG — bake için WPF yeniden kodlama yapılmaz.</summary>
+    private byte[]? _lastPreviewPngBytes;
     private Point? _cloneHoverNorm;
     private bool _clonePainting;
     private Point? _cloneLastStampNorm;
@@ -4157,14 +4161,16 @@ public partial class MainWindow : Window
         _cloneSourcePins = null;
         _cloneSourcePinOffsets = null;
         _cloneSourcePatchPng = null;
+        _cloneSourcePatchBakeWidth = 0;
+        _cloneSourcePatchBakeHeight = 0;
     }
 
     private void CaptureCloneSourcePinGeometry()
     {
-        // 3+ pin: dışbükey zarf (bowtie / yanlış sıra → bozuk üçgen kesiti önler)
+        // 3+ pin: kullanıcı tıklama sırası (overlay ile bire bir; hull seçimi küçültmesin)
         if (_selectionPins.Count >= 3)
         {
-            _cloneSourcePins = ConvexHullNorm(_selectionPins);
+            _cloneSourcePins = NormalizePinPolygon(_selectionPins);
         }
         // Döndürülmüş dikdörtgen seçim: görünen 4 köşeyi pin gibi sakla
         else if (_pendingCropRect is { } rect && Math.Abs(_selectionRotationDeg) > 0.5)
@@ -4245,6 +4251,61 @@ public partial class MainWindow : Window
         upper.RemoveAt(upper.Count - 1);
         lower.AddRange(upper);
         return lower.Count >= 3 ? lower : pins.Select(p => new Point(p.X, p.Y)).ToList();
+    }
+
+    /// <summary>Pin çokgeni: varsayılan tıklama sırası; yalnızca kendi kendine kesiyorsa açısal sırala.</summary>
+    private static List<Point> NormalizePinPolygon(IReadOnlyList<Point> pins)
+    {
+        if (pins.Count < 3)
+            return pins.Select(p => new Point(p.X, p.Y)).ToList();
+
+        var ordered = pins.Select(p => new Point(p.X, p.Y)).ToList();
+        if (!IsSelfIntersectingPolygon(ordered))
+            return ordered;
+
+        double cx = ordered.Average(p => p.X);
+        double cy = ordered.Average(p => p.Y);
+        return ordered
+            .OrderBy(p => Math.Atan2(p.Y - cy, p.X - cx))
+            .ToList();
+    }
+
+    private static bool IsSelfIntersectingPolygon(IReadOnlyList<Point> pts)
+    {
+        int n = pts.Count;
+        if (n < 4)
+            return false;
+
+        for (int i = 0; i < n; i++)
+        {
+            var a1 = pts[i];
+            var a2 = pts[(i + 1) % n];
+            for (int j = i + 2; j < n; j++)
+            {
+                if (j == n - 1 && i == 0)
+                    continue;
+                var b1 = pts[j];
+                var b2 = pts[(j + 1) % n];
+                if (SegmentsIntersect(a1, a2, b1, b2))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool SegmentsIntersect(Point p1, Point p2, Point p3, Point p4)
+    {
+        static double Cross(Point o, Point a, Point b) =>
+            (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
+
+        double d1 = Cross(p3, p4, p1);
+        double d2 = Cross(p3, p4, p2);
+        double d3 = Cross(p1, p2, p3);
+        double d4 = Cross(p1, p2, p4);
+        if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0))
+            && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)))
+            return true;
+        return false;
     }
 
     /// <summary>
@@ -4358,88 +4419,65 @@ public partial class MainWindow : Window
     /// <summary>Canlı önizleme bitmap'inden kilitli pin/yama kesitini PNG olarak çıkarır.</summary>
     private byte[]? TryBakeClonePatchPngFromPreview()
     {
-        if (LivePreviewImage.Source is not BitmapSource bmp)
-            return null;
         if (_cloneSourcePatchRect is null && _cloneSourcePins is not { Count: >= 3 })
             return null;
 
-        try
+        byte[]? pngBytes = _lastPreviewPngBytes;
+        if (pngBytes is null or { Length: 0 })
         {
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(bmp));
-            using var ms = new MemoryStream();
-            encoder.Save(ms);
-            using var full = SixLabors.ImageSharp.Image.Load<Rgba32>(ms.ToArray());
-
-            int w = full.Width;
-            int h = full.Height;
-            float NormX(double n) => (float)(Math.Clamp(n, 0, 1) * (w - 1));
-            float NormY(double n) => (float)(Math.Clamp(n, 0, 1) * (h - 1));
-
-            List<(float x, float y)> poly = [];
-            if (_cloneSourcePins is { Count: >= 3 } pins)
-            {
-                poly = pins.Select(p => (NormX(p.X), NormY(p.Y))).ToList();
-            }
-            else if (_cloneSourcePatchRect is { } r)
-            {
-                poly =
-                [
-                    (NormX(r.Left), NormY(r.Top)),
-                    (NormX(r.Left + r.Width), NormY(r.Top)),
-                    (NormX(r.Left + r.Width), NormY(r.Top + r.Height)),
-                    (NormX(r.Left), NormY(r.Top + r.Height))
-                ];
-            }
-
-            if (poly.Count < 3)
+            if (LivePreviewImage.Source is not BitmapSource bmp)
                 return null;
-
-            float left = poly.Min(p => p.x);
-            float top = poly.Min(p => p.y);
-            float right = poly.Max(p => p.x);
-            float bottom = poly.Max(p => p.y);
-            int x0 = Math.Clamp((int)Math.Floor(left), 0, w - 1);
-            int y0 = Math.Clamp((int)Math.Floor(top), 0, h - 1);
-            int x1 = Math.Clamp((int)Math.Ceiling(right) + 1, x0 + 1, w);
-            int y1 = Math.Clamp((int)Math.Ceiling(bottom) + 1, y0 + 1, h);
-            int rw = x1 - x0;
-            int rh = y1 - y0;
-
-            var local = poly.Select(p => (p.x - x0, p.y - y0)).ToArray();
-            using var patch = full.Clone(ctx => ctx.Crop(new SixLabors.ImageSharp.Rectangle(x0, y0, rw, rh)));
-            for (int y = 0; y < rh; y++)
+            try
             {
-                for (int x = 0; x < rw; x++)
-                {
-                    if (!PointInPolyLocal(x + 0.5f, y + 0.5f, local))
-                        patch[x, y] = new Rgba32(0, 0, 0, 0);
-                }
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bmp));
+                using var encMs = new MemoryStream();
+                encoder.Save(encMs);
+                pngBytes = encMs.ToArray();
             }
-
-            using var outMs = new MemoryStream();
-            patch.Save(outMs, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
-            return outMs.ToArray();
+            catch
+            {
+                return null;
+            }
         }
-        catch
+
+        List<(double X, double Y)> polyNorm = [];
+        if (_cloneSourcePins is { Count: >= 3 } pins)
+            polyNorm = pins.Select(p => (p.X, p.Y)).ToList();
+        else if (_cloneSourcePatchRect is { } r)
         {
+            polyNorm =
+            [
+                (r.Left, r.Top),
+                (r.Left + r.Width, r.Top),
+                (r.Left + r.Width, r.Top + r.Height),
+                (r.Left, r.Top + r.Height)
+            ];
+        }
+
+        if (polyNorm.Count < 3)
+            return null;
+
+        int logicalW = Math.Max(1, _previewPixelWidth);
+        int logicalH = Math.Max(1, _previewPixelHeight);
+        if (LivePreviewImage.Source is BitmapSource bs && bs.PixelWidth > 0)
+        {
+            // Norm koordinatları ekranda görünen bitmap'e göre; bake aynı PNG'den
+            logicalW = bs.PixelWidth;
+            logicalH = bs.PixelHeight;
+        }
+
+        var baked = ClonePatchBakeService.Bake(pngBytes, polyNorm, logicalW, logicalH);
+        if (baked is null)
+        {
+            _cloneSourcePatchBakeWidth = 0;
+            _cloneSourcePatchBakeHeight = 0;
             return null;
         }
-    }
 
-    private static bool PointInPolyLocal(float x, float y, (float x, float y)[] poly)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-        {
-            float xi = poly[i].x, yi = poly[i].y;
-            float xj = poly[j].x, yj = poly[j].y;
-            bool intersect = ((yi > y) != (yj > y))
-                             && (x < (xj - xi) * (y - yi) / Math.Max(1e-6f, yj - yi) + xi);
-            if (intersect)
-                inside = !inside;
-        }
-        return inside;
+        _cloneSourcePatchBakeWidth = baked.CanvasWidth;
+        _cloneSourcePatchBakeHeight = baked.CanvasHeight;
+        return baked.Png;
     }
 
     private void CloneBrushSizeSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -4601,7 +4639,9 @@ public partial class MainWindow : Window
                 ExactCopy: true,
                 SourceRect: patch,
                 SourcePolygon: poly,
-                PatchPng: _cloneSourcePatchPng));
+                PatchPng: _cloneSourcePatchPng?.ToArray(),
+                PatchBakeWidth: _cloneSourcePatchBakeWidth,
+                PatchBakeHeight: _cloneSourcePatchBakeHeight));
             _cloneLastStampNorm = new Point(dx, dy);
             RefreshCloneButtonsUi();
             RefreshCloneOverlay();
@@ -6808,6 +6848,7 @@ public partial class MainWindow : Window
     {
         if (result.Success && result.PreviewPng is { Length: > 0 })
         {
+            _lastPreviewPngBytes = result.PreviewPng;
             try
             {
                 LivePreviewImage.Source = WpfImageHelper.FromPngBytes(result.PreviewPng);
@@ -6828,6 +6869,12 @@ public partial class MainWindow : Window
             PreviewErrorText.Visibility = Visibility.Collapsed;
             _previewPixelWidth = result.OutputWidth;
             _previewPixelHeight = result.OutputHeight;
+            if (LivePreviewImage.Source is BitmapSource loaded && loaded.PixelWidth > 0)
+            {
+                // Norm tıklamaları bitmap piksel uzayına göre; bake ölçeği bununla hizalı kalsın
+                _previewPixelWidth = loaded.PixelWidth;
+                _previewPixelHeight = loaded.PixelHeight;
+            }
             UpdatePreviewZoomHostSize();
             RefreshPreviewZoomUi();
             Dispatcher.BeginInvoke(() =>
@@ -6841,6 +6888,7 @@ public partial class MainWindow : Window
         }
         else
         {
+            _lastPreviewPngBytes = null;
             LivePreviewImage.Source = null;
             LivePreviewImage.Visibility = Visibility.Collapsed;
             _previewPixelWidth = 0;

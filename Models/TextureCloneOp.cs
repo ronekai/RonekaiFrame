@@ -15,6 +15,7 @@ public enum TextureCloneBrushShape
 /// Koordinatlar önizleme / şablon tuvali normalize (0..1).
 /// ExactCopy + SourceRect: seçim alanını bire bir (sert kenar) hedefe kopyalar.
 /// PatchPng: Kaynak al anında kilitlenen kesit (görünen önizleme pikselleri).
+/// PatchBakeWidth/Height: kesitin alındığı önizleme tuvali (px) — damga ölçeklemesi için.
 /// </summary>
 public sealed record TextureCloneOp(
     NormalizedPoint SourceCenter,
@@ -26,4 +27,6 @@ public sealed record TextureCloneOp(
     bool ExactCopy = false,
     NormalizedCropRect? SourceRect = null,
     IReadOnlyList<NormalizedPoint>? SourcePolygon = null,
-    byte[]? PatchPng = null);
+    byte[]? PatchPng = null,
+    int PatchBakeWidth = 0,
+    int PatchBakeHeight = 0);

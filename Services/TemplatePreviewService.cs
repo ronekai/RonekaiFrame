@@ -139,9 +139,6 @@ public static class TemplatePreviewService
                         Math.Max(1, (int)Math.Round(ProductPlacementContext.DestHeight * sy)));
                 }
 
-                if (cloneOps.Count > 0)
-                    TextureCloneService.ApplyAll(frame, cloneOps);
-
                 using (frame)
                 {
                     if (deferBrand)
@@ -154,6 +151,10 @@ public static class TemplatePreviewService
                     using var withText = job.TextOverlay.HasText
                         ? TextOverlayRenderer.Apply(withLogo, job.TextOverlay, theme)
                         : withLogo.CloneAs<Rgba32>();
+
+                    // Klon: logo/metin SONRASI — kullanıcı önizlemede ne görüyorsa aynı piksel uzayı
+                    if (cloneOps.Count > 0)
+                        TextureCloneService.ApplyAll(withText, cloneOps);
 
                     // Canlı önizleme: OutputScaler pad/letterbox YAPMA —
                     // Fixed/Instagram vb. tuval geometrisini bozup pin/klon seçimini kaydırır.

@@ -63,14 +63,13 @@ public static class TextureCloneService
             float destCy = (float)(Math.Clamp(op.DestCenter.Y, 0, 1) * (image.Height - 1));
             float stampRot = (float)op.RotationDegrees;
 
-            // Hedef boyutu: SourceRect norm → mevcut tuval pikseli (önizleme/export boyutu farkı)
-            int targetW = patch.Width;
-            int targetH = patch.Height;
-            if (op.SourceRect is { } sr)
-            {
-                targetW = Math.Max(1, (int)Math.Round(sr.Width * image.Width));
-                targetH = Math.Max(1, (int)Math.Round(sr.Height * image.Height));
-            }
+            int bakeW = op.PatchBakeWidth > 0 ? op.PatchBakeWidth : patch.Width;
+            int bakeH = op.PatchBakeHeight > 0 ? op.PatchBakeHeight : patch.Height;
+            double scaleX = image.Width / (double)Math.Max(1, bakeW);
+            double scaleY = image.Height / (double)Math.Max(1, bakeH);
+
+            int targetW = Math.Max(1, (int)Math.Round(patch.Width * scaleX));
+            int targetH = Math.Max(1, (int)Math.Round(patch.Height * scaleY));
 
             Image<Rgba32> stamp = patch;
             Image<Rgba32>? scaled = null;
@@ -87,11 +86,20 @@ public static class TextureCloneService
                     stamp = scaled;
                 }
 
-                // Kaynak centroid (SourceCenter) → hedef tık; AABB ortası değil
-                // (yamuk seçimde AABB ≠ centroid; overlay ile aynı hizalama)
+                // Pivot: kaynak merkezi (pin centroid) → damga merkezi; AABB ortası değil
                 float pcx = (stamp.Width - 1) / 2f;
                 float pcy = (stamp.Height - 1) / 2f;
-                if (op.SourceRect is { } srAlign && srAlign.Width > 1e-6 && srAlign.Height > 1e-6)
+                if (op.SourcePolygon is { Count: >= 3 } srcPoly && op.SourceRect is { } srPoly)
+                {
+                    double cx = srcPoly.Average(p => p.X);
+                    double cy = srcPoly.Average(p => p.Y);
+                    if (srPoly.Width > 1e-6 && srPoly.Height > 1e-6)
+                    {
+                        pcx = (float)((cx - srPoly.Left) / srPoly.Width * (stamp.Width - 1));
+                        pcy = (float)((cy - srPoly.Top) / srPoly.Height * (stamp.Height - 1));
+                    }
+                }
+                else if (op.SourceRect is { } srAlign && srAlign.Width > 1e-6 && srAlign.Height > 1e-6)
                 {
                     double fx = (op.SourceCenter.X - srAlign.Left) / srAlign.Width;
                     double fy = (op.SourceCenter.Y - srAlign.Top) / srAlign.Height;
@@ -127,12 +135,24 @@ public static class TextureCloneService
         float cos = MathF.Cos(rad);
         float sin = MathF.Sin(rad);
 
-        float diag = MathF.Sqrt(pw * pw + ph * ph);
-        int half = (int)Math.Ceiling(diag / 2f) + 2;
-        int x0 = Math.Clamp((int)Math.Floor(destCx - half), 0, w);
-        int y0 = Math.Clamp((int)Math.Floor(destCy - half), 0, h);
-        int x1 = Math.Clamp((int)Math.Ceiling(destCx + half), x0, w);
-        int y1 = Math.Clamp((int)Math.Ceiling(destCy + half), y0, h);
+        int x0, y0, x1, y1;
+        if (Math.Abs(degrees) < 0.05f)
+        {
+            // Döndürme yok: tüm yama ROI'si (diyagonal kırpma olmasın)
+            x0 = Math.Clamp((int)Math.Floor(destCx - pcx), 0, w);
+            y0 = Math.Clamp((int)Math.Floor(destCy - pcy), 0, h);
+            x1 = Math.Clamp((int)Math.Ceiling(destCx - pcx + pw), x0 + 1, w);
+            y1 = Math.Clamp((int)Math.Ceiling(destCy - pcy + ph), y0 + 1, h);
+        }
+        else
+        {
+            float diag = MathF.Sqrt(pw * pw + ph * ph);
+            int half = (int)Math.Ceiling(diag / 2f) + 2;
+            x0 = Math.Clamp((int)Math.Floor(destCx - half), 0, w);
+            y0 = Math.Clamp((int)Math.Floor(destCy - half), 0, h);
+            x1 = Math.Clamp((int)Math.Ceiling(destCx + half), x0, w);
+            y1 = Math.Clamp((int)Math.Ceiling(destCy + half), y0, h);
+        }
 
         dest.ProcessPixelRows(accessor =>
         {
@@ -181,12 +201,7 @@ public static class TextureCloneService
 
         Vec2[]? srcPoly = null;
         if (op.SourcePolygon is { Count: >= 3 } srcPts)
-        {
-            var raw = srcPts.Select(p => new Vec2(NormX(p.X), NormY(p.Y))).ToArray();
-            srcPoly = ConvexHull(raw);
-            if (srcPoly.Length < 3)
-                srcPoly = raw;
-        }
+            srcPoly = srcPts.Select(p => new Vec2(NormX(p.X), NormY(p.Y))).ToArray();
 
         float srcCx, srcCy, srcLeft, srcTop, srcRight, srcBottom;
         if (srcPoly is { Length: >= 3 })

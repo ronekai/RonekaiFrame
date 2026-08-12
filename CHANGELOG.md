@@ -1,5 +1,17 @@
 # Değişiklik günlüğü
 
+## PhonixFrame — 2026-08-12
+
+### Pin klon damgası (kaynak al)
+- **Kaynak al** anında seçim, görünen önizlemeden PNG olarak kilitlenir; damga bire bir aynı pikselleri yapıştırır
+- 5+ pinde convex hull kaldırıldı — tıklama sırası korunur (altıgen / çokgen seçim küçülmez)
+- Çokgen maskesi ImageSharp vektör dolgu ile uygulanır (eksik alt/üst kesit sorunu giderildi)
+- Klon logo/metin **sonrasında** uygulanır (önizleme ile dışa aktarım aynı sıra)
+- Damga pivotu pin centroid’ine hizalanır; döndürme yokken tam yama ROI’si kullanılır
+- Önizleme piksel boyutu ile bake ölçeği hizalandı
+
+---
+
 ## PhonixFrame — 2026-08-09
 
 ### Şablonlar
