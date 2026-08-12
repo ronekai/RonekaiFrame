@@ -59,8 +59,9 @@ public static class TextureCloneService
             if (patch.Width < 1 || patch.Height < 1)
                 return;
 
-            float destCx = (float)(Math.Clamp(op.DestCenter.X, 0, 1) * (image.Width - 1));
-            float destCy = (float)(Math.Clamp(op.DestCenter.Y, 0, 1) * (image.Height - 1));
+            // 0..1 = tuval kenarları (Width-1 değil) — tıklama ile overlay aynı piksele oturur
+            float destCx = (float)(Math.Clamp(op.DestCenter.X, 0, 1) * image.Width);
+            float destCy = (float)(Math.Clamp(op.DestCenter.Y, 0, 1) * image.Height);
             float stampRot = (float)op.RotationDegrees;
 
             int bakeW = op.PatchBakeWidth > 0 ? op.PatchBakeWidth : patch.Width;
@@ -86,25 +87,15 @@ public static class TextureCloneService
                     stamp = scaled;
                 }
 
-                // Pivot: kaynak merkezi (pin centroid) → damga merkezi; AABB ortası değil
-                float pcx = (stamp.Width - 1) / 2f;
-                float pcy = (stamp.Height - 1) / 2f;
-                if (op.SourcePolygon is { Count: >= 3 } srcPoly && op.SourceRect is { } srPoly)
+                // Pivot: kaynak centroid'in kesitteki piksel konumu (AABB oranı değil)
+                float srcCx = (float)(Math.Clamp(op.SourceCenter.X, 0, 1) * bakeW);
+                float srcCy = (float)(Math.Clamp(op.SourceCenter.Y, 0, 1) * bakeH);
+                float pcx = (srcCx - op.PatchOriginX) * (float)scaleX;
+                float pcy = (srcCy - op.PatchOriginY) * (float)scaleY;
+                if (pcx < 0 || pcy < 0 || pcx > stamp.Width || pcy > stamp.Height)
                 {
-                    double cx = srcPoly.Average(p => p.X);
-                    double cy = srcPoly.Average(p => p.Y);
-                    if (srPoly.Width > 1e-6 && srPoly.Height > 1e-6)
-                    {
-                        pcx = (float)((cx - srPoly.Left) / srPoly.Width * (stamp.Width - 1));
-                        pcy = (float)((cy - srPoly.Top) / srPoly.Height * (stamp.Height - 1));
-                    }
-                }
-                else if (op.SourceRect is { } srAlign && srAlign.Width > 1e-6 && srAlign.Height > 1e-6)
-                {
-                    double fx = (op.SourceCenter.X - srAlign.Left) / srAlign.Width;
-                    double fy = (op.SourceCenter.Y - srAlign.Top) / srAlign.Height;
-                    pcx = (float)(Math.Clamp(fx, 0, 1) * (stamp.Width - 1));
-                    pcy = (float)(Math.Clamp(fy, 0, 1) * (stamp.Height - 1));
+                    pcx = stamp.Width / 2f;
+                    pcy = stamp.Height / 2f;
                 }
 
                 ApplyExactCopyFromPatchBuffer(image, stamp, destCx, destCy, stampRot, pcx, pcy);
@@ -189,8 +180,8 @@ public static class TextureCloneService
         if (w < 2 || h < 2)
             return;
 
-        float NormX(double n) => (float)(Math.Clamp(n, 0, 1) * (w - 1));
-        float NormY(double n) => (float)(Math.Clamp(n, 0, 1) * (h - 1));
+        float NormX(double n) => (float)(Math.Clamp(n, 0, 1) * w);
+        float NormY(double n) => (float)(Math.Clamp(n, 0, 1) * h);
 
         float destCx = NormX(op.DestCenter.X);
         float destCy = NormY(op.DestCenter.Y);
@@ -480,10 +471,10 @@ public static class TextureCloneService
         if (Math.Abs(rotationDeg) > 0.01f)
             roiR *= 1.42f; // köşegen payı
 
-        float dxC = (float)(Math.Clamp(op.DestCenter.X, 0, 1) * (w - 1));
-        float dyC = (float)(Math.Clamp(op.DestCenter.Y, 0, 1) * (h - 1));
-        float sxC = (float)(Math.Clamp(op.SourceCenter.X, 0, 1) * (w - 1));
-        float syC = (float)(Math.Clamp(op.SourceCenter.Y, 0, 1) * (h - 1));
+        float dxC = (float)(Math.Clamp(op.DestCenter.X, 0, 1) * w);
+        float dyC = (float)(Math.Clamp(op.DestCenter.Y, 0, 1) * h);
+        float sxC = (float)(Math.Clamp(op.SourceCenter.X, 0, 1) * w);
+        float syC = (float)(Math.Clamp(op.SourceCenter.Y, 0, 1) * h);
         float offX = sxC - dxC;
         float offY = syC - dyC;
 
@@ -633,10 +624,10 @@ public static class TextureCloneService
         int rw = x1 - x0;
         int rh = y1 - y0;
 
-        float dxC = (float)(Math.Clamp(op.DestCenter.X, 0, 1) * (w - 1));
-        float dyC = (float)(Math.Clamp(op.DestCenter.Y, 0, 1) * (h - 1));
-        float sxC = (float)(Math.Clamp(op.SourceCenter.X, 0, 1) * (w - 1));
-        float syC = (float)(Math.Clamp(op.SourceCenter.Y, 0, 1) * (h - 1));
+        float dxC = (float)(Math.Clamp(op.DestCenter.X, 0, 1) * w);
+        float dyC = (float)(Math.Clamp(op.DestCenter.Y, 0, 1) * h);
+        float sxC = (float)(Math.Clamp(op.SourceCenter.X, 0, 1) * w);
+        float syC = (float)(Math.Clamp(op.SourceCenter.Y, 0, 1) * h);
         float offX = sxC - dxC;
         float offY = syC - dyC;
 

@@ -89,6 +89,8 @@ public partial class MainWindow : Window
     private byte[]? _cloneSourcePatchPng;
     private int _cloneSourcePatchBakeWidth;
     private int _cloneSourcePatchBakeHeight;
+    private int _cloneSourcePatchOriginX;
+    private int _cloneSourcePatchOriginY;
     /// <summary>Son canlı önizleme PNG — bake için WPF yeniden kodlama yapılmaz.</summary>
     private byte[]? _lastPreviewPngBytes;
     private Point? _cloneHoverNorm;
@@ -99,7 +101,9 @@ public partial class MainWindow : Window
     private NormalizedCropRect? _edgePadSampleRect;
     private double _previewZoom = 1.0;
     private const double PreviewZoomMin = 0.5;
-    private const double PreviewZoomMax = 8.0;
+    // 1.0 = %100. 8.0 = %800 tavanı yetersiz kalıyordu.
+    // Kullanıcı isteği: daha fazla yakınlaştırma (ör. %1600-%2000 arası).
+    private const double PreviewZoomMax = 20.0;
     private const double PreviewZoomStep = 1.15;
     private bool _updatingZoomHost;
     private bool _pinSelectMode;
@@ -4168,6 +4172,8 @@ public partial class MainWindow : Window
         _cloneSourcePatchPng = null;
         _cloneSourcePatchBakeWidth = 0;
         _cloneSourcePatchBakeHeight = 0;
+        _cloneSourcePatchOriginX = 0;
+        _cloneSourcePatchOriginY = 0;
     }
 
     private void CaptureCloneSourcePinGeometry()
@@ -4477,11 +4483,15 @@ public partial class MainWindow : Window
         {
             _cloneSourcePatchBakeWidth = 0;
             _cloneSourcePatchBakeHeight = 0;
+            _cloneSourcePatchOriginX = 0;
+            _cloneSourcePatchOriginY = 0;
             return null;
         }
 
         _cloneSourcePatchBakeWidth = baked.CanvasWidth;
         _cloneSourcePatchBakeHeight = baked.CanvasHeight;
+        _cloneSourcePatchOriginX = baked.OriginX;
+        _cloneSourcePatchOriginY = baked.OriginY;
         return baked.Png;
     }
 
@@ -4675,7 +4685,9 @@ public partial class MainWindow : Window
                 SourcePolygon: poly,
                 PatchPng: _cloneSourcePatchPng?.ToArray(),
                 PatchBakeWidth: _cloneSourcePatchBakeWidth,
-                PatchBakeHeight: _cloneSourcePatchBakeHeight));
+                PatchBakeHeight: _cloneSourcePatchBakeHeight,
+                PatchOriginX: _cloneSourcePatchOriginX,
+                PatchOriginY: _cloneSourcePatchOriginY));
             _cloneLastStampNorm = new Point(dx, dy);
             RefreshCloneButtonsUi();
             RefreshCloneOverlay();
@@ -5567,14 +5579,35 @@ public partial class MainWindow : Window
         return renderedW > 0 && renderedH > 0;
     }
 
-    private bool TryPointToNorm(Point p, out double nx, out double ny)
+    private bool TryPointToNorm(Point p, out double nx, out double ny) =>
+        TryPointToNorm(p, out nx, out ny, snapToPixel: false);
+
+    /// <summary>
+    /// Önizleme tıklamasını 0..1 tuval normuna çevirir.
+    /// snapToPixel: imlecin altındaki önizleme pikseline kilitler (yakınlaştırmada damga sapmasını keser).
+    /// </summary>
+    private bool TryPointToNorm(Point p, out double nx, out double ny, bool snapToPixel)
     {
         nx = 0;
         ny = 0;
-        if (!TryGetLetterboxMapping(out _, out var renderedW, out var renderedH, out var offsetX, out var offsetY))
+        if (!TryGetLetterboxMapping(out var bitmap, out var renderedW, out var renderedH, out var offsetX, out var offsetY))
             return false;
-        nx = Math.Clamp((p.X - offsetX) / renderedW, 0, 1);
-        ny = Math.Clamp((p.Y - offsetY) / renderedH, 0, 1);
+
+        double u = (p.X - offsetX) / renderedW;
+        double v = (p.Y - offsetY) / renderedH;
+        if (snapToPixel && bitmap.PixelWidth > 0 && bitmap.PixelHeight > 0)
+        {
+            double px = Math.Clamp(u, 0, 1 - 1e-12) * bitmap.PixelWidth;
+            double py = Math.Clamp(v, 0, 1 - 1e-12) * bitmap.PixelHeight;
+            int ix = Math.Clamp((int)Math.Floor(px), 0, bitmap.PixelWidth - 1);
+            int iy = Math.Clamp((int)Math.Floor(py), 0, bitmap.PixelHeight - 1);
+            nx = (ix + 0.5) / bitmap.PixelWidth;
+            ny = (iy + 0.5) / bitmap.PixelHeight;
+            return true;
+        }
+
+        nx = Math.Clamp(u, 0, 1);
+        ny = Math.Clamp(v, 0, 1);
         return true;
     }
 
@@ -6091,7 +6124,7 @@ public partial class MainWindow : Window
 
         if (IsCloneStampMode && !_isCropping && _eyedropperColorField is null)
         {
-            if (TryPointToNorm(pos, out double hnx, out double hny))
+            if (TryPointToNorm(pos, out double hnx, out double hny, snapToPixel: true))
             {
                 _cloneHoverNorm = new Point(hnx, hny);
                 if (_clonePainting && _cloneSourceNorm is not null && !_clonePickSourceNext)
@@ -6335,7 +6368,7 @@ public partial class MainWindow : Window
             CancelEyedropper();
             CancelCropDrag();
             var cpos = e.GetPosition(LivePreviewImage);
-            if (!TryPointToNorm(cpos, out double cnx, out double cny))
+            if (!TryPointToNorm(cpos, out double cnx, out double cny, snapToPixel: true))
             {
                 e.Handled = true;
                 return;

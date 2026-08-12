@@ -29,4 +29,6 @@ public sealed record TextureCloneOp(
     IReadOnlyList<NormalizedPoint>? SourcePolygon = null,
     byte[]? PatchPng = null,
     int PatchBakeWidth = 0,
-    int PatchBakeHeight = 0);
+    int PatchBakeHeight = 0,
+    int PatchOriginX = 0,
+    int PatchOriginY = 0);

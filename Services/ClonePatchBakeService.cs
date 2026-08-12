@@ -12,7 +12,14 @@ namespace RonekaiImageFramer.Services;
 /// <summary>Canlı önizlemeden pin çokgeni kesitini PNG olarak çıkarır.</summary>
 public static class ClonePatchBakeService
 {
-    public sealed record BakeResult(byte[] Png, int CanvasWidth, int CanvasHeight, int PatchWidth, int PatchHeight);
+    public sealed record BakeResult(
+        byte[] Png,
+        int CanvasWidth,
+        int CanvasHeight,
+        int PatchWidth,
+        int PatchHeight,
+        int OriginX,
+        int OriginY);
 
     public static BakeResult? Bake(
         byte[] previewPng,
@@ -34,9 +41,9 @@ public static class ClonePatchBakeService
             int canvasW = logicalCanvasWidth > 0 ? logicalCanvasWidth : w;
             int canvasH = logicalCanvasHeight > 0 ? logicalCanvasHeight : h;
 
-            // Norm (0..1) → önizleme pikseli; mantıksal tuval boyutu saklanır (damga ölçeklemesi için)
-            float PxX(double n) => (float)(Math.Clamp(n, 0, 1) * (w - 1));
-            float PxY(double n) => (float)(Math.Clamp(n, 0, 1) * (h - 1));
+            // 0 = sol/üst kenar, 1 = sağ/alt kenar (piksel ızgarası; Width-1 kayması yok)
+            float PxX(double n) => (float)(Math.Clamp(n, 0, 1) * w);
+            float PxY(double n) => (float)(Math.Clamp(n, 0, 1) * h);
 
             var poly = polygonNorm.Select(p => (PxX(p.X), PxY(p.Y))).ToArray();
 
@@ -61,7 +68,7 @@ public static class ClonePatchBakeService
 
             using var outMs = new MemoryStream();
             patch.Save(outMs, new PngEncoder());
-            return new BakeResult(outMs.ToArray(), canvasW, canvasH, rw, rh);
+            return new BakeResult(outMs.ToArray(), canvasW, canvasH, rw, rh, x0, y0);
         }
         catch
         {
