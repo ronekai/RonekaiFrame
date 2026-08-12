@@ -2544,7 +2544,7 @@ public partial class MainWindow : Window
 
         folder = paths.FirstOrDefault(Directory.Exists);
         files = paths.Where(File.Exists)
-            .Where(p => ImageInputCatalog.IsSupportedExtension(Path.GetExtension(p)))
+            .Where(ImageInputCatalog.IsDiscoverableImage)
             .ToList();
         return folder is not null || files.Count > 0;
     }
@@ -7062,16 +7062,27 @@ public partial class MainWindow : Window
             var files = BatchProcessor.FindImages(path!);
             int count = files.Count;
             int heif = BatchProcessor.CountHeifImages(files);
+            int avif = BatchProcessor.CountAvifImages(files);
             ImageCountText.Text = count > 0
-                ? heif > 0
-                    ? $"{count} resim ({heif} HEIC)"
-                    : $"{count} resim"
-                : "Resim yok — .jpg, .heic veya .hdc dosyalarını bu klasöre koyun";
+                ? BuildImageCountLabel(count, avif, heif)
+                : "Resim yok — JPG/PNG/WEBP/AVIF/HEIC (yanlış uzantılı dosyalar dahil)";
         }
         catch
         {
             ImageCountText.Text = "";
         }
+    }
+
+    private static string BuildImageCountLabel(int count, int avif, int heifFamily)
+    {
+        int heicOnly = Math.Max(0, heifFamily - avif);
+        if (avif > 0 && heicOnly > 0)
+            return $"{count} resim ({avif} AVIF, {heicOnly} HEIC)";
+        if (avif > 0)
+            return $"{count} resim ({avif} AVIF)";
+        if (heifFamily > 0)
+            return $"{count} resim ({heifFamily} HEIC)";
+        return $"{count} resim";
     }
 
     private void UpdateOutputPreview()

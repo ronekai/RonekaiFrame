@@ -21,14 +21,23 @@ public static class SourceImageLoader
         if (ImageInputCatalog.IsSvgExtension(ext))
             return SvgRasterizer.Load(filePath);
 
-        if (ImageInputCatalog.IsAvifFile(filePath)
-            || ImageInputCatalog.IsHeifFile(filePath)
-            || ImageInputCatalog.IsHeifAliasExtension(ext)
-            || ImageInputCatalog.LooksLikeAvif(filePath)
-            || ImageInputCatalog.LooksLikeHeifContainer(filePath))
-        {
+        // Uzantı .jpg/.jpeg olsa bile içerik AVIF/HEIF/WEBP olabilir
+        bool jpegExtButNotJpeg = ImageInputCatalog.IsJpegExtension(ext)
+                                 && !ImageInputCatalog.LooksLikeJpeg(filePath);
+        if (jpegExtButNotJpeg && ImageInputCatalog.LooksLikeWebp(filePath))
+            return LoadRaster(filePath);
+        if (jpegExtButNotJpeg && ImageInputCatalog.LooksLikePng(filePath))
+            return LoadRaster(filePath);
+
+        bool heifFamily = ImageInputCatalog.IsAvifFile(filePath)
+                          || ImageInputCatalog.IsHeifFile(filePath)
+                          || ImageInputCatalog.IsHeifAliasExtension(ext)
+                          || ImageInputCatalog.LooksLikeAvif(filePath)
+                          || ImageInputCatalog.LooksLikeHeifContainer(filePath)
+                          || jpegExtButNotJpeg;
+
+        if (heifFamily)
             return LoadHeifFamily(filePath);
-        }
 
         try
         {

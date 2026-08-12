@@ -31,7 +31,7 @@ public static class ImageInputCatalog
             .ToArray();
 
     public static string SupportedFormatsDescription =>
-        "JPG/JFIF, PNG, WEBP, AVIF, BMP, GIF, TIFF, ICO, SVG, Mac/iPhone HEIC/HEIF ve .hdc";
+        "JPG/JFIF, PNG, WEBP, AVIF (yanlış .jpg/.jpeg uzantılı dahil), BMP, GIF, TIFF, ICO, SVG, Mac/iPhone HEIC/HEIF ve .hdc";
 
     public static bool IsSupportedExtension(string extension) =>
         AllExtensions.Contains(extension.ToLowerInvariant());
@@ -110,7 +110,7 @@ public static class ImageInputCatalog
         try
         {
             using var stream = File.OpenRead(filePath);
-            Span<byte> header = stackalloc byte[32];
+            Span<byte> header = stackalloc byte[64];
             int read = stream.Read(header);
             if (read < 12)
                 return false;
@@ -118,16 +118,28 @@ public static class ImageInputCatalog
                   && header[6] == (byte)'y' && header[7] == (byte)'p'))
                 return false;
 
-            // brand: avif / avis / mif1+av01
+            // brand / compatible brands: avif, avis, av01
             for (int i = 8; i <= read - 4; i++)
             {
-                if (header[i] == (byte)'a' && header[i + 1] == (byte)'v'
-                    && (header[i + 2] == (byte)'i' || header[i + 2] == (byte)'0')
-                    && (header[i + 3] == (byte)'f' || header[i + 3] == (byte)'s' || header[i + 3] == (byte)'1'))
+                bool av = header[i] == (byte)'a' && header[i + 1] == (byte)'v';
+                if (!av)
+                    continue;
+                // avif / avis
+                if (header[i + 2] == (byte)'i'
+                    && (header[i + 3] == (byte)'f' || header[i + 3] == (byte)'s'))
+                    return true;
+                // av01
+                if (header[i + 2] == (byte)'0' && header[i + 3] == (byte)'1')
                     return true;
             }
 
-            return IsAvifFile(filePath);
+            // .avif uzantısı veya .jpg adıyla gelmiş ftyp konteyner (çoğu web AVIF)
+            if (IsAvifFile(filePath))
+                return true;
+            if (IsJpegExtension(Path.GetExtension(filePath)) && !LooksLikeJpeg(filePath))
+                return true;
+
+            return false;
         }
         catch
         {
@@ -167,6 +179,47 @@ public static class ImageInputCatalog
         {
             return false;
         }
+    }
+
+    public static bool LooksLikePng(string filePath)
+    {
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            Span<byte> header = stackalloc byte[8];
+            if (stream.Read(header) < 8)
+                return false;
+            return header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47
+                   && header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Uzantı yanlış olsa bile (ör. AVIF içeriği .jpeg adıyla) desteklenen görsel mi?
+    /// </summary>
+    public static bool LooksLikeSupportedRaster(string filePath) =>
+        LooksLikeJpeg(filePath)
+        || LooksLikePng(filePath)
+        || LooksLikeWebp(filePath)
+        || LooksLikeHeifContainer(filePath)
+        || LooksLikeAvif(filePath);
+
+    /// <summary>Uzantı veya içerik ile kaynak listesine alınabilir mi?</summary>
+    public static bool IsDiscoverableImage(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            return false;
+
+        var ext = Path.GetExtension(filePath);
+        if (!string.IsNullOrEmpty(ext) && IsSupportedExtension(ext))
+            return true;
+
+        // Uzantısız veya sahte uzantı: içerik imzasına bak
+        return LooksLikeSupportedRaster(filePath);
     }
 
     public static string DescribeDetectedFormat(string filePath, long fileLength)

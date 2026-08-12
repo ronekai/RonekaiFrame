@@ -19,13 +19,16 @@ public static class BatchProcessor
 {
     public static IReadOnlyList<string> FindImages(string sourceFolder) =>
         Directory.EnumerateFiles(sourceFolder, "*.*", SearchOption.TopDirectoryOnly)
-            .Where(f => ImageInputCatalog.IsSupportedExtension(Path.GetExtension(f)))
+            .Where(ImageInputCatalog.IsDiscoverableImage)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
     public static int CountHeifImages(IEnumerable<string> files) =>
         files.Count(ImageInputCatalog.IsHeifFamilyFile);
+
+    public static int CountAvifImages(IEnumerable<string> files) =>
+        files.Count(f => ImageInputCatalog.LooksLikeAvif(f) || ImageInputCatalog.IsAvifFile(f));
 
     public static async Task<ProcessResult> ProcessFilesAsync(
         IReadOnlyList<string> files,
@@ -167,7 +170,7 @@ public static class BatchProcessor
             {
                 var file = files[i];
                 var fileName = Path.GetFileName(file);
-                bool isHeif = ImageInputCatalog.IsHeifFile(file);
+                bool isHeif = ImageInputCatalog.IsHeifFamilyFile(file);
 
                 try
                 {
