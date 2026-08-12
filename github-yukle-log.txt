@@ -7,3 +7,26 @@
 [2026-07-10 15:46:52]   - Git operations protocol: https
 [2026-07-10 15:46:52]   - Token: gho_************************************
 [2026-07-10 15:46:52]   - Token scopes: 'gist', 'read:org', 'repo'
+[2026-07-10 15:46:52] M  github-yukle-log.txt
+[2026-07-10 15:46:52] Commit: commit-msg.txt
+[2026-07-10 15:46:52] [main 2be96ad] PhonixFrame — marka logolari, dosya bazli logo ve betik temizligi
+[2026-07-10 15:46:52]  Committer: Mehmet Kaskara <mkaskara@tjk.org>
+[2026-07-10 15:46:52] Your name and email address were configured automatically based
+[2026-07-10 15:46:52] on your username and hostname. Please check that they are accurate.
+[2026-07-10 15:46:52] You can suppress this message by setting them explicitly:
+[2026-07-10 15:46:52] 
+[2026-07-10 15:46:52]     git config --global user.name "Your Name"
+[2026-07-10 15:46:52]     git config --global user.email you@example.com
+[2026-07-10 15:46:52] 
+[2026-07-10 15:46:52] After doing this, you may fix the identity used for this commit with:
+[2026-07-10 15:46:52] 
+[2026-07-10 15:46:52]     git commit --amend --reset-author
+[2026-07-10 15:46:52] 
+[2026-07-10 15:46:52]  1 file changed, 8 insertions(+), 8 deletions(-)
+[2026-07-10 15:46:52] Push (origin main)...
+[2026-07-10 15:46:55] To https://github.com/ronekai/RonekaiFrame.git
+[2026-07-10 15:46:55]    e27c906..2be96ad  main -> main
+[2026-07-10 15:46:55] branch 'main' set up to track 'origin/main'.
+[2026-07-10 15:46:56] Repo: https://github.com/ronekai/RonekaiFrame
+[2026-07-10 15:46:56] === Bitti ===
+[2026-07-10 15:46:56] Log: C:\Users\mkaskara\Source\Repos\RonekaiFrame\github-yukle-log.txt

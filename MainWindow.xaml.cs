@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private bool _updatingCropPxUi;
     private readonly List<WatermarkCleanOp> _watermarkCleanOps = [];
     private readonly List<TextureCloneOp> _textureCloneOps = [];
+    private readonly List<TextureCloneOp> _textureCloneRedoOps = [];
     private readonly List<SelectionPasteOp> _selectionPasteOps = [];
     private readonly Dictionary<string, PerFilePreviewEditState> _perFilePreviewEdits =
         new(StringComparer.OrdinalIgnoreCase);
@@ -1205,6 +1206,7 @@ public partial class MainWindow : Window
     {
         _watermarkCleanOps.Clear();
         _textureCloneOps.Clear();
+        _textureCloneRedoOps.Clear();
         _selectionPasteOps.Clear();
         _activeCropRect = null;
         _pendingCropRect = null;
@@ -1228,6 +1230,7 @@ public partial class MainWindow : Window
         {
             _watermarkCleanOps.AddRange(state.CleanOps);
             _textureCloneOps.AddRange(state.CloneOps);
+            _textureCloneRedoOps.Clear();
             _selectionPasteOps.AddRange(state.PasteOps);
             _activeCropRect = state.ActiveCrop;
             _pendingCropRect = state.PendingCrop;
@@ -3312,6 +3315,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Yeni klon eklendiğinde redo geçersiz olur
+        ClearCloneRedoStack();
         var src = new NormalizedPoint(_cloneSourceNorm.Value.X, _cloneSourceNorm.Value.Y);
         _textureCloneOps.Add(new TextureCloneOp(
             src,
@@ -4497,14 +4502,40 @@ public partial class MainWindow : Window
     {
         if (_textureCloneOps.Count == 0)
             return;
+
+        // Undo: son klonu sil ama redo için sakla
+        var last = _textureCloneOps[^1];
         _textureCloneOps.RemoveAt(_textureCloneOps.Count - 1);
+        _textureCloneRedoOps.Add(last);
+
         RefreshCloneButtonsUi();
         ScheduleLivePreview();
+    }
+
+    private void CloneRedoButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_textureCloneRedoOps.Count == 0)
+            return;
+
+        // Redo: redo kuyruğunun sonunu tekrar uygula
+        var op = _textureCloneRedoOps[^1];
+        _textureCloneRedoOps.RemoveAt(_textureCloneRedoOps.Count - 1);
+        _textureCloneOps.Add(op);
+
+        RefreshCloneButtonsUi();
+        ScheduleLivePreview();
+    }
+
+    private void ClearCloneRedoStack()
+    {
+        _textureCloneRedoOps.Clear();
+        RefreshCloneButtonsUi();
     }
 
     private void ClearTextureCloneState()
     {
         _textureCloneOps.Clear();
+        _textureCloneRedoOps.Clear();
         _cloneSourceNorm = null;
         _cloneSourcePatchRect = null;
         ClearCloneSourcePinGeometry();
@@ -4523,6 +4554,8 @@ public partial class MainWindow : Window
     {
         if (CloneUndoButton is not null)
             CloneUndoButton.IsEnabled = _textureCloneOps.Count > 0;
+        if (CloneRedoButton is not null)
+            CloneRedoButton.IsEnabled = _textureCloneRedoOps.Count > 0;
         if (CloneStampModeToggle is not null)
         {
             CloneStampModeToggle.Content = _textureCloneOps.Count > 0
@@ -4629,6 +4662,7 @@ public partial class MainWindow : Window
                 ? TextureCloneBrushShape.Square
                 : _cloneSourcePatchShape;
 
+            ClearCloneRedoStack();
             _textureCloneOps.Add(new TextureCloneOp(
                 new NormalizedPoint(src.X, src.Y),
                 new NormalizedPoint(dx, dy),
@@ -4662,6 +4696,7 @@ public partial class MainWindow : Window
                 return;
         }
 
+        ClearCloneRedoStack();
         _textureCloneOps.Add(new TextureCloneOp(
             new NormalizedPoint(src.X, src.Y),
             new NormalizedPoint(dx, dy),

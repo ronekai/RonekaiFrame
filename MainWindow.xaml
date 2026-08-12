@@ -239,6 +239,10 @@
                                         Style="{StaticResource SecondaryButton}" Padding="8,4"
                                         ToolTip="Son klon damgasını geri al"
                                         Click="CloneUndoButton_Click" IsEnabled="False"/>
+                                <Button x:Name="CloneRedoButton" Content="Klon ↷"
+                                        Style="{StaticResource SecondaryButton}" Padding="8,4"
+                                        ToolTip="Son klonu ileri al (redo)"
+                                        Click="CloneRedoButton_Click" IsEnabled="False"/>
                                 <TextBlock x:Name="CloneStatusHint" Text=""
                                            VerticalAlignment="Center" FontSize="11" Margin="8,0,0,0"
                                            Foreground="#0A7EA4" FontWeight="SemiBold"/>
